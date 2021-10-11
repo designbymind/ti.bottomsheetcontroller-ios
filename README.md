@@ -41,6 +41,9 @@ manually hide the controller, per exaple if to did any action in the content vie
 ### `prefersGrabberVisible:bool`
 #### A Boolean value that determines whether the sheet shows a grabber at the top.
 
+### `nonModal:bool`
+#### For a nonmodal experience (no dimming, medium detent), you might want to disable drag to dismiss to ensure the modal is always there at the bottom.
+
 ### `largestUndimmedDetentIdentifier:string`
 #### medium or large - if not set, it is full dimmed depending on activated detents - The largest detent that doesn’t dim the view underneath the sheet. 
 ***If not set, defaults to full dimmed***
