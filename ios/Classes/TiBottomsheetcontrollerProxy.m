@@ -324,14 +324,29 @@ TiBottomsheetcontrollerProxy *currentTiBottomSheet;
             userDetents = [self valueForKey:@"detents"];
 
             NSMutableArray *detentsOfController = [NSMutableArray arrayWithCapacity:2];
-
-            //[TiUtils boolValue:[self valueForKey:@"prefersEdgeAttachedInCompactHeight"]
-            
+            /*
             if ([TiUtils boolValue:[userDetents valueForKey:@"medium"] def:NO]) {
                 [detentsOfController addObject:[UISheetPresentationControllerDetent mediumDetent]];
             }
             if ([TiUtils boolValue:[userDetents valueForKey:@"large"] def:NO]) {
                 [detentsOfController addObject:[UISheetPresentationControllerDetent largeDetent]];
+            }
+            */
+            
+            if ([TiUtils boolValue:[self valueForKey:@"nonModal"] def:NO]) {
+                 if ([TiUtils boolValue:[userDetents valueForKey:@"large"] def:NO]) {
+                     [detentsOfController addObject:[UISheetPresentationControllerDetent largeDetent]];
+                 }
+                 if ([TiUtils boolValue:[userDetents valueForKey:@"medium"] def:NO]) {
+                     [detentsOfController addObject:[UISheetPresentationControllerDetent mediumDetent]];
+                 }
+            } else {
+                 if ([TiUtils boolValue:[userDetents valueForKey:@"medium"] def:NO]) {
+                     [detentsOfController addObject:[UISheetPresentationControllerDetent mediumDetent]];
+                 }
+                 if ([TiUtils boolValue:[userDetents valueForKey:@"large"] def:NO]) {
+                     [detentsOfController addObject:[UISheetPresentationControllerDetent largeDetent]];
+                 }
             }
 
             bottomSheet.detents = detentsOfController;
