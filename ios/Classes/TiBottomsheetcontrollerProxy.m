@@ -75,7 +75,23 @@ TiBottomsheetcontrollerProxy *currentTiBottomSheet;
     }
 }
 
+- (void)changeCurrentDetent:(id)value
+{
+    ENSURE_ARG_COUNT(value, 1);
+    NSString *identifier = [TiUtils stringValue:[value objectAtIndex:0]];
+      
+    UISheetPresentationControllerDetentIdentifier newDetent = bottomSheet.selectedDetentIdentifier;
 
+    if ([identifier isEqual: @"large"] && ([bottomSheet.detents containsObject:[UISheetPresentationControllerDetent largeDetent]])){
+        newDetent = UISheetPresentationControllerDetentIdentifierLarge;
+    }
+    else if ([identifier isEqual: @"medium"] && ([bottomSheet.detents containsObject:[UISheetPresentationControllerDetent mediumDetent]])){
+        newDetent = UISheetPresentationControllerDetentIdentifierMedium;
+    }
+    [bottomSheet animateChanges:^{
+        bottomSheet.selectedDetentIdentifier = newDetent;
+    }];
+}
 
 - (void)setContentView:(id)value
 {
