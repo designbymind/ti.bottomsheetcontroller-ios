@@ -10,6 +10,7 @@
 ### `hide({animated:bool}) ` 
 manually hide the controller, per exaple if to did any action in the content view
 ### `selectedDetentIdentifier` return STRING - selectedDetentIdentifier (medium,large or none)
+### `changeCurrentDetent(String)` can be one of **medium** or **large**
 
 ## Events
 
