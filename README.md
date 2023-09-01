@@ -20,10 +20,13 @@ Also new features for the nonSystemSheet!
 * MODULE  -> `createBottomSheet({properties}) `<br/> the **bottomSheetObject**
 
 ## bottomSheetObject Methods
-* `open({animated:bool}) `
-* `close({animated:bool}) `<br/> close the controller, per exaple if to did any action in the content view
+* `open({animated:bool})`
+* `close({animated:bool})`<br/> close the controller, per exaple if to did any action in the content view
 * `selectedDetentIdentifier`<br/>return STRING - selectedDetentIdentifier (medium,large or none)
 * `changeCurrentDetent(STRING)`<br/>change the selectedDetentIdentifier animated ('large' or 'medium') **on 'nonSystemSheet:false' only** (iOS15+)
+* `disableDetent = STRING`<br/>disable the passed detent ('large' or 'medium') **on 'nonSystemSheet:false' only** (iOS15+)
+* `enableDetent = STRING`<br/>enable the passed detent ('large' or 'medium') **on 'nonSystemSheet:false' only** (iOS15+)
+* `disableDismissing = BOOLEAN`<br/>disable (`true`) or enable (`false`) pull-down/swipe dismissing of the bottomsheet
 
 
 ## Events
