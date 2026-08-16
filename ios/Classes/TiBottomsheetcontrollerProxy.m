@@ -435,12 +435,34 @@
       [detentsOfController addObject:[UISheetPresentationControllerDetent largeDetent]];
     }
 
-    for (NSString *key in customDetents.allKeys) {
-      CGFloat value = [TiUtils floatValue:[customDetents objectForKey:key]];
-      [detentsOfController addObject:[UISheetPresentationControllerDetent customDetentWithHeight:value]];
+    if (customDetents.count > 0) {
+      if (@available(iOS 16.0, macCatalyst 16.0, *)) {
+        NSArray *sortedCustomDetentKeys = [customDetents keysSortedByValueUsingComparator:^NSComparisonResult(id value1, id value2) {
+          CGFloat height1 = [TiUtils floatValue:value1];
+          CGFloat height2 = [TiUtils floatValue:value2];
 
-      if ([[TiUtils stringValue:[self valueForKey:@"startDetent"]] isEqualToString:key]) {
-        initalSelectedDetent = UISheetPresentationControllerDetentIdentifierCustom(value);
+          if (height1 < height2) {
+            return NSOrderedAscending;
+          }
+          if (height1 > height2) {
+            return NSOrderedDescending;
+          }
+          return NSOrderedSame;
+        }];
+
+        for (NSString *key in sortedCustomDetentKeys) {
+          CGFloat value = [TiUtils floatValue:[customDetents objectForKey:key]];
+          UISheetPresentationControllerDetentIdentifier identifier = (UISheetPresentationControllerDetentIdentifier)key;
+
+          [detentsOfController addObject:[UISheetPresentationControllerDetent ti_customDetentWithIdentifier:identifier
+                                                                                                     height:value]];
+
+          if ([[TiUtils stringValue:[self valueForKey:@"startDetent"]] isEqualToString:key]) {
+            initalSelectedDetent = identifier;
+          }
+        }
+      } else {
+        NSLog(@"[WARN] customDetents require iOS 16.0 or newer and were ignored.");
       }
     }
 
