@@ -295,6 +295,7 @@
   } else {
     [contentViewProxy windowWillOpen];
     [contentViewProxy reposition];
+    [contentViewProxy layoutChildrenIfNeeded];
   }
 
   if (closeButtonProxy != nil) {
@@ -307,9 +308,21 @@
     closeButtonView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, width, height)];
   }
 
-  [self updateContentSize];
-  [self updatePopoverNow];
-  [contentViewProxy windowDidOpen];
+  // Titanium may not have completed the native view hierarchy/layout during the
+  // same call stack as windowWillOpen/open. Preserve the original module's short
+  // defer before sizing and presenting the system sheet so contentView is fully
+  // materialized and laid out before UIKit presents its view controller.
+  dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    if (!self->bottomSheetInitialized || self->contentViewProxy == nil) {
+      return;
+    }
+
+    [self updateContentSize];
+    [self->contentViewProxy reposition];
+    [self->contentViewProxy layoutChildrenIfNeeded];
+    [self updatePopoverNow];
+    [self->contentViewProxy windowDidOpen];
+  });
 }
 
 #pragma mark - Sizing
