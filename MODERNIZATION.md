@@ -142,6 +142,27 @@ For new mixed custom/system configurations, the ordered array form is preferred.
 
 Phase 5 has been build-tested successfully, including the ordered detent API, persistent lowest-detent behavior, manual and programmatic transitions, background interaction at the undimmed detent, dismissal prevention, and programmatic `close()`.
 
+## Phase 5.5 — Native Liquid Glass appearance — IMPLEMENTED, TEST PENDING
+
+The module no longer paints a default light-gray background over the presented sheet. When no `backgroundColor` is provided, the presented controller view is transparent so UIKit can render the native system sheet material, including Liquid Glass on iOS 26+.
+
+```js
+const sheet = BottomSheet.createBottomSheet({
+  contentView: content,
+  detents: [
+    { identifier: 'bar', height: 76 },
+    'medium',
+    'large'
+  ],
+  startDetent: 'bar',
+  dismissible: false
+});
+```
+
+No `backgroundColor` means UIKit owns the sheet appearance. An explicitly supplied `backgroundColor` remains supported as an intentional override. `backgroundColor: 'transparent'` also maps to a clear controller background.
+
+This phase intentionally does not add a custom `UIVisualEffectView` or simulated blur; it preserves the system presentation so current iOS appearance and behavior can evolve with UIKit.
+
 ## Phase 6 — Continuous detent progress
 
 Add a continuous `detentProgress` event synchronized with the sheet's live position.
