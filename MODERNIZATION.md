@@ -21,7 +21,7 @@ This branch modernizes `ti.bottomsheetcontroller` around Apple's native `UISheet
 
 Phase 1 has been build-tested successfully. A Titanium lifecycle regression discovered during testing was corrected by restoring deferred content layout before presentation.
 
-## Phase 2 — Runtime dismissal control — IMPLEMENTED, TEST PENDING
+## Phase 2 — Runtime dismissal control ✅
 
 Add `dismissible` (default `true`).
 
@@ -50,9 +50,11 @@ sheet.close();
 
 Implementation uses the presented controller's public `modalInPresentation` property together with the presentation-controller delegate. The `dismissing` event is emitted only when an interactive dismissal is actually allowed.
 
-## Phase 3 — Public named custom detents
+Phase 2 has been build-tested successfully, including runtime enable/disable in both directions, detent panning, and programmatic `close()`.
 
-Replace the legacy private detent API with Apple's public custom-detent resolver API.
+## Phase 3 — Public named custom detents — IMPLEMENTED, TEST PENDING
+
+Replace the legacy private detent API with Apple's public iOS 16+ custom-detent resolver API.
 
 Example:
 
@@ -64,7 +66,9 @@ customDetents: {
 }
 ```
 
-Custom identifiers such as `bar`, `preview`, and `compose` become real UIKit detent identifiers.
+Custom identifiers such as `bar`, `preview`, and `compose` are now the actual UIKit `UISheetPresentationControllerDetentIdentifier` values. Static custom heights are clamped to UIKit's `maximumDetentValue` and custom detents are ordered by height before being added.
+
+On iOS 15, native `medium` / `large` detents remain supported, while `customDetents` are ignored with a warning because Apple's public custom-detent resolver API starts in iOS 16.
 
 ## Phase 4 — Unified detent selection and events
 
