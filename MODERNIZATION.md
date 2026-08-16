@@ -56,7 +56,7 @@ Phase 2 has been build-tested successfully, including runtime enable/disable in 
 
 Replace the legacy private detent API with Apple's public iOS 16+ custom-detent resolver API.
 
-Example:
+Legacy-compatible example:
 
 ```js
 customDetents: {
@@ -66,15 +66,15 @@ customDetents: {
 }
 ```
 
-Custom identifiers such as `bar`, `preview`, and `compose` are now the actual UIKit `UISheetPresentationControllerDetentIdentifier` values. Static custom heights are clamped to UIKit's `maximumDetentValue` and custom detents are ordered by height before being added.
+Custom identifiers such as `bar`, `preview`, and `compose` are now the actual UIKit `UISheetPresentationControllerDetentIdentifier` values. Static custom heights are clamped to UIKit's `maximumDetentValue`.
 
-On iOS 15, native `medium` / `large` detents remain supported, while `customDetents` are ignored with a warning because Apple's public custom-detent resolver API starts in iOS 16.
+On iOS 15, native `medium` / `large` detents remain supported, while custom detents are ignored with a warning because Apple's public custom-detent resolver API starts in iOS 16.
 
 Phase 3 has been build-tested successfully with custom-only and mixed custom/native detent configurations, including named `startDetent` behavior.
 
-## Phase 4 — Unified detent selection and events — IMPLEMENTED, TEST PENDING
+## Phase 4 — Unified detent selection and events ✅
 
-Native and custom detents now share the same identifier path:
+Native and custom detents share the same Titanium-facing identifier path:
 
 ```js
 sheet.changeCurrentDetent('bar');
@@ -82,26 +82,63 @@ sheet.changeCurrentDetent('medium');
 sheet.changeCurrentDetent('large');
 ```
 
-- `selectedDetentIdentifier` returns UIKit's actual selected identifier for custom and system detents.
+- `selectedDetentIdentifier` returns friendly `medium` / `large` names for system detents and the configured name for custom detents.
 - `changeCurrentDetent(identifier)` accepts any configured detent identifier and animates to it with `animateChanges:`.
 - Invalid/unconfigured identifiers are ignored with a warning rather than being sent to UIKit.
-- `detentChange` emits the actual selected identifier for custom and system detents.
-- The proxy maintains a registry of the identifiers actually installed on the current sheet.
+- `detentChange` emits the same normalized identifier for manual and programmatic changes.
+- The proxy maintains a registry of identifiers actually installed on the current sheet.
 
-## Phase 5 — Floating bottom-bar behavior
+Phase 4 has been build-tested successfully for manual and programmatic transitions across custom and system detents.
 
-Support a small persistent lowest detent such as:
+## Phase 5 — Floating bottom-bar behavior — IMPLEMENTED, TEST PENDING
+
+Phase 5 adds an ordered detent API so the native sheet itself can serve as a persistent floating bottom bar at its smallest detent and expand upward through larger states.
+
+Recommended v2 configuration:
 
 ```js
+const sheet = BottomSheet.createBottomSheet({
+  contentView: content,
+
+  // Explicitly smallest -> largest.
+  detents: [
+    { identifier: 'bar', height: 76 },
+    { identifier: 'reply', height: 390 },
+    'medium',
+    'large'
+  ],
+
+  startDetent: 'bar',
+  dismissible: false,
+  largestUndimmedDetentIdentifier: 'bar',
+  prefersGrabberVisible: false
+});
+```
+
+Ordered `detents` entries may be:
+
+- `'medium'`
+- `'large'`
+- `{ identifier: 'name', height: number }`
+
+The array order is passed directly to UIKit and must be smallest to largest. This avoids relying on dictionary enumeration or attempting to infer where dynamically sized system detents belong relative to fixed custom detents.
+
+With `dismissible: false`, the sheet can pan between all configured detents but cannot be dragged away below the smallest detent. Programmatic `close()` still works. Setting `largestUndimmedDetentIdentifier: 'bar'` keeps the presenting content interactive while the sheet rests at the bar detent and allows UIKit's normal dimming behavior above it.
+
+The legacy API remains supported:
+
+```js
+detents: {
+  medium: true,
+  large: true
+},
 customDetents: {
   bar: 76,
   reply: 390
-},
-startDetent: 'bar',
-dismissible: false
+}
 ```
 
-The sheet may move between `bar`, `reply`, `medium`, and/or `large`, but cannot be dragged below the lowest detent when dismissal is disabled.
+For new mixed custom/system configurations, the ordered array form is preferred. If ordered `detents` is supplied, separate `customDetents` is ignored with a warning.
 
 ## Phase 6 — Continuous detent progress
 
