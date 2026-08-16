@@ -90,7 +90,7 @@ sheet.changeCurrentDetent('large');
 
 Phase 4 has been build-tested successfully for manual and programmatic transitions across custom and system detents.
 
-## Phase 5 — Floating bottom-bar behavior — IMPLEMENTED, TEST PENDING
+## Phase 5 — Floating bottom-bar behavior ✅
 
 Phase 5 adds an ordered detent API so the native sheet itself can serve as a persistent floating bottom bar at its smallest detent and expand upward through larger states.
 
@@ -139,6 +139,8 @@ customDetents: {
 ```
 
 For new mixed custom/system configurations, the ordered array form is preferred. If ordered `detents` is supplied, separate `customDetents` is ignored with a warning.
+
+Phase 5 has been build-tested successfully, including the ordered detent API, persistent lowest-detent behavior, manual and programmatic transitions, background interaction at the undimmed detent, dismissal prevention, and programmatic `close()`.
 
 ## Phase 6 — Continuous detent progress
 
