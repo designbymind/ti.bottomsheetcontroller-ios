@@ -536,10 +536,6 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
 - (void)updatePopoverNow
 {
   if (@available(iOS 15.0, macCatalyst 15.0, *)) {
-    if (![self valueForKey:@"backgroundColor"] || [[self valueForKey:@"backgroundColor"] isEqual:@"transparent"]) {
-      [self replaceValue:[TiUtils hexColorValue:[UIColor lightGrayColor]] forKey:@"backgroundColor" notification:YES];
-    }
-
     UIViewController *theController = [self viewController];
 
     // UISheetPresentationController is only available for sheet-style presentations.
@@ -620,7 +616,20 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
       [self setLargestUndimmedDetentIdentifier:[self valueForKey:@"largestUndimmedDetentIdentifier"]];
     }
 
-    [theController.view setBackgroundColor:[[TiUtils colorValue:[self valueForKey:@"backgroundColor"]] _color]];
+    // Do not paint a default background over the system sheet. Leaving the
+    // controller view transparent allows UIKit to provide its native sheet
+    // material (including Liquid Glass on iOS 26+). An explicitly supplied
+    // Titanium backgroundColor remains an intentional visual override.
+    id backgroundColorValue = [self valueForKey:@"backgroundColor"];
+    if (backgroundColorValue != nil) {
+      if ([[TiUtils stringValue:backgroundColorValue] isEqualToString:@"transparent"]) {
+        theController.view.backgroundColor = [UIColor clearColor];
+      } else {
+        theController.view.backgroundColor = [[TiUtils colorValue:backgroundColorValue] _color];
+      }
+    } else {
+      theController.view.backgroundColor = [UIColor clearColor];
+    }
 
     if (closeButtonView != nil) {
       closeButtonProxy.view.frame = closeButtonView.bounds;
