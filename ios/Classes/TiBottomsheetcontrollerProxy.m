@@ -129,9 +129,22 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
       return;
     }
 
+    NSString *currentIdentifier = TiPublicDetentIdentifier(bottomSheet.selectedDetentIdentifier);
+    NSString *targetIdentifier = TiPublicDetentIdentifier(nativeIdentifier);
+
+    if ([currentIdentifier isEqualToString:targetIdentifier]) {
+      return;
+    }
+
     [bottomSheet animateChanges:^{
       self->bottomSheet.selectedDetentIdentifier = nativeIdentifier;
     }];
+
+    // UISheetPresentationController's delegate reliably reports interactive
+    // detent changes, but programmatic selectedDetentIdentifier assignments do
+    // not consistently invoke that callback. Emit the same normalized event here
+    // so Titanium observes both interaction paths uniformly.
+    [self fireEvent:@"detentChange" withObject:@{ @"selectedDetentIdentifier" : targetIdentifier }];
   }
 }
 
