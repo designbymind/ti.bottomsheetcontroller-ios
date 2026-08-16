@@ -12,14 +12,16 @@ This branch modernizes `ti.bottomsheetcontroller` around Apple's native `UISheet
 - Expose continuous normalized drag progress between neighboring detents for synchronized UI effects.
 - Preserve native UIKit gestures, scrolling coordination, keyboard handling, accessibility, and current iOS appearance.
 
-## Phase 1 — System-sheet-only cleanup
+## Phase 1 — System-sheet-only cleanup ✅
 
 - Remove all `nonSystemSheet` configuration and runtime branches.
 - Remove the custom fallback controller implementation.
 - Keep `UISheetPresentationController` as the only sheet engine.
 - Preserve existing native-sheet properties and lifecycle behavior.
 
-## Phase 2 — Runtime dismissal control
+Phase 1 has been build-tested successfully. A Titanium lifecycle regression discovered during testing was corrected by restoring deferred content layout before presentation.
+
+## Phase 2 — Runtime dismissal control — IMPLEMENTED, TEST PENDING
 
 Add `dismissible` (default `true`).
 
@@ -27,6 +29,26 @@ Add `dismissible` (default `true`).
 - Detent-to-detent dragging remains available.
 - `sheet.close()` remains available regardless of `dismissible`.
 - Changing `dismissible` while the sheet is presented takes effect immediately.
+
+Example:
+
+```js
+const sheet = BottomSheet.createBottomSheet({
+  contentView: content,
+  dismissible: false
+});
+
+sheet.open();
+
+// Runtime changes take effect immediately.
+sheet.dismissible = true;
+sheet.dismissible = false;
+
+// Programmatic dismissal is always allowed.
+sheet.close();
+```
+
+Implementation uses the presented controller's public `modalInPresentation` property together with the presentation-controller delegate. The `dismissing` event is emitted only when an interactive dismissal is actually allowed.
 
 ## Phase 3 — Public named custom detents
 
