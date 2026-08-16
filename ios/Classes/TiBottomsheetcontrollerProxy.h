@@ -20,6 +20,7 @@
   UISheetPresentationController *bottomSheet API_AVAILABLE(ios(15.0), macCatalyst(15.0));
   NSDictionary *userDetents;
   NSDictionary *customDetents;
+  NSMutableSet *configuredDetentIdentifiers;
   UIEdgeInsets bottomSheetSafeAreaInset;
   TiViewProxy *contentViewProxy;
   TiViewProxy *closeButtonProxy;
