@@ -1,22 +1,21 @@
 //
 //  UISheetPresentationControllerDetent+CustomDetent.h
-//  UISheetPresentationControllerCustomDetent
+//  ti.bottomsheetcontroller
 //
-//  Created by Alex Perez on 7/31/21.
+//  Public UIKit custom-detent helper.
 //
 
 @import UIKit;
 
 NS_ASSUME_NONNULL_BEGIN
 
-FOUNDATION_EXPORT UISheetPresentationControllerDetentIdentifier UISheetPresentationControllerDetentIdentifierCustom(CGFloat height);
-
 @interface UISheetPresentationControllerDetent (CustomDetent)
 
-/// Creates a custom detent with the specified height
-/// @param height The height of the detent
-/// @note The total height of the presented sheet is the bottom safe area height + detent height
-+ (instancetype)customDetentWithHeight:(CGFloat)height NS_SWIFT_NAME(custom(_:));
+/// Creates a named custom detent using Apple's public iOS 16+ resolver API.
+/// The identifier is the same identifier exposed to Titanium (for example "bar").
+/// The resolved height is clamped to UIKit's maximum detent value.
++ (instancetype)ti_customDetentWithIdentifier:(UISheetPresentationControllerDetentIdentifier)identifier
+                                       height:(CGFloat)height API_AVAILABLE(ios(16.0), macCatalyst(16.0));
 
 @end
 
