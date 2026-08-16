@@ -25,6 +25,7 @@
     bottomSheetInitialized = NO;
     eventFired = NO;
     isDismissing = NO;
+    dismissible = YES;
     deviceRotated = NO;
 
     UIViewController<TiControllerContainment> *topContainerController = [[[TiApp app] controller] topContainerController];
@@ -103,6 +104,23 @@
       self->bottomSheet.selectedDetentIdentifier = newDetent;
     }];
   }
+}
+
+- (void)setDismissible:(id)value
+{
+  dismissible = [TiUtils boolValue:value def:YES];
+  [self replaceValue:[NSNumber numberWithBool:dismissible] forKey:@"dismissible" notification:NO];
+
+  TiThreadPerformOnMainThread(^{
+    if (self->viewController != nil) {
+      self->viewController.modalInPresentation = !self->dismissible;
+    }
+  }, NO);
+}
+
+- (BOOL)dismissible
+{
+  return dismissible;
 }
 
 - (void)setLargestUndimmedDetentIdentifier:(id)value
@@ -382,6 +400,10 @@
       theController.modalPresentationStyle = UIModalPresentationPageSheet;
     }
 
+    // modalInPresentation blocks interactive dismissal but does not prevent
+    // programmatic dismissal via close(). It can also be changed at runtime.
+    theController.modalInPresentation = !dismissible;
+
     bottomSheet = [[theController sheetPresentationController] retain];
     if (bottomSheet == nil) {
       NSLog(@"[ERROR] Unable to create UISheetPresentationController. Use pageSheet presentation for bottom-sheet behavior.");
@@ -493,6 +515,10 @@
 
 - (BOOL)presentationControllerShouldDismiss:(UIPresentationController *)presentationController
 {
+  if (!dismissible) {
+    return NO;
+  }
+
   if ([[self viewController] presentedViewController] != nil) {
     return NO;
   }
