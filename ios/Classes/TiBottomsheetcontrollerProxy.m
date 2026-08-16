@@ -27,6 +27,7 @@
     isDismissing = NO;
     dismissible = YES;
     deviceRotated = NO;
+    configuredDetentIdentifiers = [[NSMutableSet alloc] init];
 
     UIViewController<TiControllerContainment> *topContainerController = [[[TiApp app] controller] topContainerController];
     bottomSheetSafeAreaInset = [[topContainerController hostingView] safeAreaInsets];
@@ -54,6 +55,7 @@
   RELEASE_TO_NIL(contentViewProxy);
   RELEASE_TO_NIL(closeButtonProxy);
   RELEASE_TO_NIL(closeButtonView);
+  RELEASE_TO_NIL(configuredDetentIdentifiers);
   RELEASE_TO_NIL(_detents);
   RELEASE_TO_NIL(_largestUndimmedDetentIdentifier);
 
@@ -70,11 +72,9 @@
 - (NSString *)selectedDetentIdentifier
 {
   if (@available(iOS 15.0, macCatalyst 15.0, *)) {
-    if (bottomSheet.selectedDetentIdentifier == UISheetPresentationControllerDetentIdentifierMedium) {
-      return @"medium";
-    }
-    if (bottomSheet.selectedDetentIdentifier == UISheetPresentationControllerDetentIdentifierLarge) {
-      return @"large";
+    UISheetPresentationControllerDetentIdentifier identifier = bottomSheet.selectedDetentIdentifier;
+    if (identifier != nil) {
+      return identifier;
     }
   }
 
@@ -88,20 +88,17 @@
   NSString *identifier = [TiUtils stringValue:[value objectAtIndex:0]];
 
   if (@available(iOS 15.0, macCatalyst 15.0, *)) {
-    if (bottomSheet == nil) {
+    if (bottomSheet == nil || identifier == nil) {
       return;
     }
 
-    UISheetPresentationControllerDetentIdentifier newDetent = bottomSheet.selectedDetentIdentifier;
-
-    if ([identifier isEqualToString:@"large"] && [bottomSheet.detents containsObject:[UISheetPresentationControllerDetent largeDetent]]) {
-      newDetent = UISheetPresentationControllerDetentIdentifierLarge;
-    } else if ([identifier isEqualToString:@"medium"] && [bottomSheet.detents containsObject:[UISheetPresentationControllerDetent mediumDetent]]) {
-      newDetent = UISheetPresentationControllerDetentIdentifierMedium;
+    if (![configuredDetentIdentifiers containsObject:identifier]) {
+      NSLog(@"[WARN] BottomSheet detent '%@' is not configured. Ignoring changeCurrentDetent().", identifier);
+      return;
     }
 
     [bottomSheet animateChanges:^{
-      self->bottomSheet.selectedDetentIdentifier = newDetent;
+      self->bottomSheet.selectedDetentIdentifier = (UISheetPresentationControllerDetentIdentifier)identifier;
     }];
   }
 }
@@ -277,6 +274,7 @@
 
   bottomSheetInitialized = NO;
   isDismissing = NO;
+  [configuredDetentIdentifiers removeAllObjects];
 
   RELEASE_TO_NIL(bottomSheet);
   RELEASE_TO_NIL(viewController);
@@ -425,14 +423,17 @@
     userDetents = [self valueForKey:@"detents"];
     customDetents = [self valueForKey:@"customDetents"];
 
+    [configuredDetentIdentifiers removeAllObjects];
     NSMutableArray *detentsOfController = [NSMutableArray array];
 
     if ([TiUtils boolValue:[userDetents valueForKey:@"medium"] def:NO]) {
       [detentsOfController addObject:[UISheetPresentationControllerDetent mediumDetent]];
+      [configuredDetentIdentifiers addObject:UISheetPresentationControllerDetentIdentifierMedium];
     }
 
     if ([TiUtils boolValue:[userDetents valueForKey:@"large"] def:NO]) {
       [detentsOfController addObject:[UISheetPresentationControllerDetent largeDetent]];
+      [configuredDetentIdentifiers addObject:UISheetPresentationControllerDetentIdentifierLarge];
     }
 
     if (customDetents.count > 0) {
@@ -456,6 +457,7 @@
 
           [detentsOfController addObject:[UISheetPresentationControllerDetent ti_customDetentWithIdentifier:identifier
                                                                                                      height:value]];
+          [configuredDetentIdentifiers addObject:identifier];
 
           if ([[TiUtils stringValue:[self valueForKey:@"startDetent"]] isEqualToString:key]) {
             initalSelectedDetent = identifier;
@@ -468,18 +470,19 @@
 
     if (detentsOfController.count == 0) {
       [detentsOfController addObject:[UISheetPresentationControllerDetent mediumDetent]];
+      [configuredDetentIdentifiers addObject:UISheetPresentationControllerDetentIdentifierMedium];
     }
 
     bottomSheet.detents = detentsOfController;
 
     NSString *startDetent = [TiUtils stringValue:[self valueForKey:@"startDetent"]];
-    if ([startDetent isEqualToString:@"large"] && [TiUtils boolValue:[userDetents valueForKey:@"large"] def:NO]) {
+    if ([startDetent isEqualToString:@"large"] && [configuredDetentIdentifiers containsObject:UISheetPresentationControllerDetentIdentifierLarge]) {
       initalSelectedDetent = UISheetPresentationControllerDetentIdentifierLarge;
-    } else if ([startDetent isEqualToString:@"medium"] && [TiUtils boolValue:[userDetents valueForKey:@"medium"] def:NO]) {
+    } else if ([startDetent isEqualToString:@"medium"] && [configuredDetentIdentifiers containsObject:UISheetPresentationControllerDetentIdentifierMedium]) {
       initalSelectedDetent = UISheetPresentationControllerDetentIdentifierMedium;
     }
 
-    if (initalSelectedDetent != nil) {
+    if (initalSelectedDetent != nil && [configuredDetentIdentifiers containsObject:initalSelectedDetent]) {
       bottomSheet.selectedDetentIdentifier = initalSelectedDetent;
     }
 
@@ -528,10 +531,9 @@
 
 - (void)sheetPresentationControllerDidChangeSelectedDetentIdentifier:(UISheetPresentationController *)bottomSheetPresentationController API_AVAILABLE(ios(15.0), macCatalyst(15.0))
 {
-  if (bottomSheetPresentationController.selectedDetentIdentifier == UISheetPresentationControllerDetentIdentifierMedium) {
-    [self fireEvent:@"detentChange" withObject:@{ @"selectedDetentIdentifier" : @"medium" }];
-  } else if (bottomSheetPresentationController.selectedDetentIdentifier == UISheetPresentationControllerDetentIdentifierLarge) {
-    [self fireEvent:@"detentChange" withObject:@{ @"selectedDetentIdentifier" : @"large" }];
+  UISheetPresentationControllerDetentIdentifier identifier = bottomSheetPresentationController.selectedDetentIdentifier;
+  if (identifier != nil) {
+    [self fireEvent:@"detentChange" withObject:@{ @"selectedDetentIdentifier" : identifier }];
   }
 }
 
