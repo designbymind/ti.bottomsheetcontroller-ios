@@ -13,6 +13,36 @@
 #import <TitaniumKit/TiUtils.h>
 #import <TitaniumKit/TiWindowProxy.h>
 
+static NSString *TiPublicDetentIdentifier(UISheetPresentationControllerDetentIdentifier identifier)
+{
+  if (identifier == nil) {
+    return nil;
+  }
+
+  if ([identifier isEqualToString:UISheetPresentationControllerDetentIdentifierMedium]) {
+    return @"medium";
+  }
+
+  if ([identifier isEqualToString:UISheetPresentationControllerDetentIdentifierLarge]) {
+    return @"large";
+  }
+
+  return identifier;
+}
+
+static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NSString *identifier)
+{
+  if ([identifier isEqualToString:@"medium"]) {
+    return UISheetPresentationControllerDetentIdentifierMedium;
+  }
+
+  if ([identifier isEqualToString:@"large"]) {
+    return UISheetPresentationControllerDetentIdentifierLarge;
+  }
+
+  return (UISheetPresentationControllerDetentIdentifier)identifier;
+}
+
 @implementation TiBottomsheetcontrollerProxy
 
 #pragma mark - Setup
@@ -72,7 +102,7 @@
 - (NSString *)selectedDetentIdentifier
 {
   if (@available(iOS 15.0, macCatalyst 15.0, *)) {
-    UISheetPresentationControllerDetentIdentifier identifier = bottomSheet.selectedDetentIdentifier;
+    NSString *identifier = TiPublicDetentIdentifier(bottomSheet.selectedDetentIdentifier);
     if (identifier != nil) {
       return identifier;
     }
@@ -85,20 +115,22 @@
 {
   ENSURE_ARG_COUNT(value, 1);
 
-  NSString *identifier = [TiUtils stringValue:[value objectAtIndex:0]];
+  NSString *requestedIdentifier = [TiUtils stringValue:[value objectAtIndex:0]];
 
   if (@available(iOS 15.0, macCatalyst 15.0, *)) {
-    if (bottomSheet == nil || identifier == nil) {
+    if (bottomSheet == nil || requestedIdentifier == nil) {
       return;
     }
 
-    if (![configuredDetentIdentifiers containsObject:identifier]) {
-      NSLog(@"[WARN] BottomSheet detent '%@' is not configured. Ignoring changeCurrentDetent().", identifier);
+    UISheetPresentationControllerDetentIdentifier nativeIdentifier = TiNativeDetentIdentifier(requestedIdentifier);
+
+    if (![configuredDetentIdentifiers containsObject:nativeIdentifier]) {
+      NSLog(@"[WARN] BottomSheet detent '%@' is not configured. Ignoring changeCurrentDetent().", requestedIdentifier);
       return;
     }
 
     [bottomSheet animateChanges:^{
-      self->bottomSheet.selectedDetentIdentifier = (UISheetPresentationControllerDetentIdentifier)identifier;
+      self->bottomSheet.selectedDetentIdentifier = nativeIdentifier;
     }];
   }
 }
@@ -531,7 +563,7 @@
 
 - (void)sheetPresentationControllerDidChangeSelectedDetentIdentifier:(UISheetPresentationController *)bottomSheetPresentationController API_AVAILABLE(ios(15.0), macCatalyst(15.0))
 {
-  UISheetPresentationControllerDetentIdentifier identifier = bottomSheetPresentationController.selectedDetentIdentifier;
+  NSString *identifier = TiPublicDetentIdentifier(bottomSheetPresentationController.selectedDetentIdentifier);
   if (identifier != nil) {
     [self fireEvent:@"detentChange" withObject:@{ @"selectedDetentIdentifier" : identifier }];
   }
