@@ -52,7 +52,7 @@ Implementation uses the presented controller's public `modalInPresentation` prop
 
 Phase 2 has been build-tested successfully, including runtime enable/disable in both directions, detent panning, and programmatic `close()`.
 
-## Phase 3 — Public named custom detents — IMPLEMENTED, TEST PENDING
+## Phase 3 — Public named custom detents ✅
 
 Replace the legacy private detent API with Apple's public iOS 16+ custom-detent resolver API.
 
@@ -70,9 +70,11 @@ Custom identifiers such as `bar`, `preview`, and `compose` are now the actual UI
 
 On iOS 15, native `medium` / `large` detents remain supported, while `customDetents` are ignored with a warning because Apple's public custom-detent resolver API starts in iOS 16.
 
-## Phase 4 — Unified detent selection and events
+Phase 3 has been build-tested successfully with custom-only and mixed custom/native detent configurations, including named `startDetent` behavior.
 
-Update the API so native and custom detents behave identically:
+## Phase 4 — Unified detent selection and events — IMPLEMENTED, TEST PENDING
+
+Native and custom detents now share the same identifier path:
 
 ```js
 sheet.changeCurrentDetent('bar');
@@ -80,7 +82,11 @@ sheet.changeCurrentDetent('medium');
 sheet.changeCurrentDetent('large');
 ```
 
-`selectedDetentIdentifier` and `detentChange` return the actual identifier for every detent.
+- `selectedDetentIdentifier` returns UIKit's actual selected identifier for custom and system detents.
+- `changeCurrentDetent(identifier)` accepts any configured detent identifier and animates to it with `animateChanges:`.
+- Invalid/unconfigured identifiers are ignored with a warning rather than being sent to UIKit.
+- `detentChange` emits the actual selected identifier for custom and system detents.
+- The proxy maintains a registry of the identifiers actually installed on the current sheet.
 
 ## Phase 5 — Floating bottom-bar behavior
 
