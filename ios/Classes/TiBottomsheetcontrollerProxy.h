@@ -18,7 +18,7 @@
   CGSize TiBottomSheetContentSize;
   UIViewController *viewController;
   UISheetPresentationController *bottomSheet API_AVAILABLE(ios(15.0), macCatalyst(15.0));
-  NSDictionary *userDetents;
+  id userDetents;
   NSDictionary *customDetents;
   NSMutableSet *configuredDetentIdentifiers;
   UIEdgeInsets bottomSheetSafeAreaInset;
