@@ -419,6 +419,118 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   [contentViewProxy reposition];
 }
 
+#pragma mark - Detent configuration
+
+- (void)addSystemDetentWithIdentifier:(NSString *)identifier toArray:(NSMutableArray *)detentsOfController
+{
+  UISheetPresentationControllerDetentIdentifier nativeIdentifier = TiNativeDetentIdentifier(identifier);
+
+  if ([configuredDetentIdentifiers containsObject:nativeIdentifier]) {
+    NSLog(@"[WARN] Duplicate BottomSheet detent '%@' ignored.", identifier);
+    return;
+  }
+
+  if ([identifier isEqualToString:@"medium"]) {
+    [detentsOfController addObject:[UISheetPresentationControllerDetent mediumDetent]];
+    [configuredDetentIdentifiers addObject:UISheetPresentationControllerDetentIdentifierMedium];
+  } else if ([identifier isEqualToString:@"large"]) {
+    [detentsOfController addObject:[UISheetPresentationControllerDetent largeDetent]];
+    [configuredDetentIdentifiers addObject:UISheetPresentationControllerDetentIdentifierLarge];
+  } else {
+    NSLog(@"[WARN] Unsupported system BottomSheet detent '%@' ignored.", identifier);
+  }
+}
+
+- (void)addCustomDetentWithIdentifier:(NSString *)identifier height:(CGFloat)height toArray:(NSMutableArray *)detentsOfController
+{
+  if (identifier.length == 0) {
+    NSLog(@"[WARN] BottomSheet custom detent requires a non-empty identifier.");
+    return;
+  }
+
+  UISheetPresentationControllerDetentIdentifier nativeIdentifier = TiNativeDetentIdentifier(identifier);
+  if ([configuredDetentIdentifiers containsObject:nativeIdentifier]) {
+    NSLog(@"[WARN] Duplicate BottomSheet detent '%@' ignored.", identifier);
+    return;
+  }
+
+  if ([identifier isEqualToString:@"medium"] || [identifier isEqualToString:@"large"]) {
+    NSLog(@"[WARN] BottomSheet custom detent identifier '%@' is reserved. Use the system detent string instead.", identifier);
+    return;
+  }
+
+  if (@available(iOS 16.0, macCatalyst 16.0, *)) {
+    [detentsOfController addObject:[UISheetPresentationControllerDetent ti_customDetentWithIdentifier:(UISheetPresentationControllerDetentIdentifier)identifier
+                                                                                               height:height]];
+    [configuredDetentIdentifiers addObject:(UISheetPresentationControllerDetentIdentifier)identifier];
+  } else {
+    NSLog(@"[WARN] custom detents require iOS 16.0 or newer and '%@' was ignored.", identifier);
+  }
+}
+
+- (void)configureOrderedDetents:(NSArray *)orderedDetents intoArray:(NSMutableArray *)detentsOfController
+{
+  for (id entry in orderedDetents) {
+    if ([entry isKindOfClass:[NSString class]]) {
+      [self addSystemDetentWithIdentifier:(NSString *)entry toArray:detentsOfController];
+      continue;
+    }
+
+    if ([entry isKindOfClass:[NSDictionary class]]) {
+      NSDictionary *definition = (NSDictionary *)entry;
+      NSString *identifier = [TiUtils stringValue:[definition objectForKey:@"identifier"]];
+      id heightValue = [definition objectForKey:@"height"];
+
+      if (identifier == nil || heightValue == nil) {
+        NSLog(@"[WARN] Ordered BottomSheet custom detents require { identifier, height }. Entry ignored.");
+        continue;
+      }
+
+      [self addCustomDetentWithIdentifier:identifier
+                                  height:[TiUtils floatValue:heightValue]
+                                 toArray:detentsOfController];
+      continue;
+    }
+
+    NSLog(@"[WARN] Unsupported BottomSheet detent definition ignored: %@", entry);
+  }
+}
+
+- (void)configureLegacyDetents:(NSDictionary *)legacyDetents customDetents:(NSDictionary *)legacyCustomDetents intoArray:(NSMutableArray *)detentsOfController
+{
+  // Preserve the pre-v2 dictionary API for compatibility. New floating-bar
+  // configurations should use the ordered array form so UIKit receives detents
+  // explicitly from smallest to largest.
+  if ([TiUtils boolValue:[legacyDetents valueForKey:@"medium"] def:NO]) {
+    [self addSystemDetentWithIdentifier:@"medium" toArray:detentsOfController];
+  }
+
+  if ([TiUtils boolValue:[legacyDetents valueForKey:@"large"] def:NO]) {
+    [self addSystemDetentWithIdentifier:@"large" toArray:detentsOfController];
+  }
+
+  if (legacyCustomDetents.count > 0) {
+    NSArray *sortedCustomDetentKeys = [legacyCustomDetents keysSortedByValueUsingComparator:^NSComparisonResult(id value1, id value2) {
+      CGFloat height1 = [TiUtils floatValue:value1];
+      CGFloat height2 = [TiUtils floatValue:value2];
+
+      if (height1 < height2) {
+        return NSOrderedAscending;
+      }
+      if (height1 > height2) {
+        return NSOrderedDescending;
+      }
+      return NSOrderedSame;
+    }];
+
+    for (NSString *key in sortedCustomDetentKeys) {
+      [self addCustomDetentWithIdentifier:key
+                                  height:[TiUtils floatValue:[legacyCustomDetents objectForKey:key]]
+                                 toArray:detentsOfController];
+    }
+  }
+}
+
 #pragma mark - Native sheet configuration
 
 - (void)updatePopoverNow
@@ -471,60 +583,31 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
     [configuredDetentIdentifiers removeAllObjects];
     NSMutableArray *detentsOfController = [NSMutableArray array];
 
-    if ([TiUtils boolValue:[userDetents valueForKey:@"medium"] def:NO]) {
-      [detentsOfController addObject:[UISheetPresentationControllerDetent mediumDetent]];
-      [configuredDetentIdentifiers addObject:UISheetPresentationControllerDetentIdentifierMedium];
-    }
+    if ([userDetents isKindOfClass:[NSArray class]]) {
+      [self configureOrderedDetents:(NSArray *)userDetents intoArray:detentsOfController];
 
-    if ([TiUtils boolValue:[userDetents valueForKey:@"large"] def:NO]) {
-      [detentsOfController addObject:[UISheetPresentationControllerDetent largeDetent]];
-      [configuredDetentIdentifiers addObject:UISheetPresentationControllerDetentIdentifierLarge];
-    }
-
-    if (customDetents.count > 0) {
-      if (@available(iOS 16.0, macCatalyst 16.0, *)) {
-        NSArray *sortedCustomDetentKeys = [customDetents keysSortedByValueUsingComparator:^NSComparisonResult(id value1, id value2) {
-          CGFloat height1 = [TiUtils floatValue:value1];
-          CGFloat height2 = [TiUtils floatValue:value2];
-
-          if (height1 < height2) {
-            return NSOrderedAscending;
-          }
-          if (height1 > height2) {
-            return NSOrderedDescending;
-          }
-          return NSOrderedSame;
-        }];
-
-        for (NSString *key in sortedCustomDetentKeys) {
-          CGFloat value = [TiUtils floatValue:[customDetents objectForKey:key]];
-          UISheetPresentationControllerDetentIdentifier identifier = (UISheetPresentationControllerDetentIdentifier)key;
-
-          [detentsOfController addObject:[UISheetPresentationControllerDetent ti_customDetentWithIdentifier:identifier
-                                                                                                     height:value]];
-          [configuredDetentIdentifiers addObject:identifier];
-
-          if ([[TiUtils stringValue:[self valueForKey:@"startDetent"]] isEqualToString:key]) {
-            initalSelectedDetent = identifier;
-          }
-        }
-      } else {
-        NSLog(@"[WARN] customDetents require iOS 16.0 or newer and were ignored.");
+      if (customDetents.count > 0) {
+        NSLog(@"[WARN] BottomSheet customDetents is ignored when detents uses the ordered array form.");
       }
+    } else {
+      NSDictionary *legacyDetents = [userDetents isKindOfClass:[NSDictionary class]] ? (NSDictionary *)userDetents : nil;
+      [self configureLegacyDetents:legacyDetents customDetents:customDetents intoArray:detentsOfController];
     }
 
     if (detentsOfController.count == 0) {
-      [detentsOfController addObject:[UISheetPresentationControllerDetent mediumDetent]];
-      [configuredDetentIdentifiers addObject:UISheetPresentationControllerDetentIdentifierMedium];
+      [self addSystemDetentWithIdentifier:@"medium" toArray:detentsOfController];
     }
 
     bottomSheet.detents = detentsOfController;
 
     NSString *startDetent = [TiUtils stringValue:[self valueForKey:@"startDetent"]];
-    if ([startDetent isEqualToString:@"large"] && [configuredDetentIdentifiers containsObject:UISheetPresentationControllerDetentIdentifierLarge]) {
-      initalSelectedDetent = UISheetPresentationControllerDetentIdentifierLarge;
-    } else if ([startDetent isEqualToString:@"medium"] && [configuredDetentIdentifiers containsObject:UISheetPresentationControllerDetentIdentifierMedium]) {
-      initalSelectedDetent = UISheetPresentationControllerDetentIdentifierMedium;
+    if (startDetent != nil) {
+      UISheetPresentationControllerDetentIdentifier startIdentifier = TiNativeDetentIdentifier(startDetent);
+      if ([configuredDetentIdentifiers containsObject:startIdentifier]) {
+        initalSelectedDetent = startIdentifier;
+      } else {
+        NSLog(@"[WARN] BottomSheet startDetent '%@' is not configured. UIKit will use its default detent.", startDetent);
+      }
     }
 
     if (initalSelectedDetent != nil && [configuredDetentIdentifiers containsObject:initalSelectedDetent]) {
