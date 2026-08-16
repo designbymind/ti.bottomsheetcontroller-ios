@@ -1,31 +1,22 @@
 //
 //  UISheetPresentationControllerDetent+CustomDetent.m
-//  UISheetPresentationControllerCustomDetent
+//  ti.bottomsheetcontroller
 //
-//  Created by Alex Perez on 7/31/21.
+//  Public UIKit custom-detent helper.
 //
 
 #import "UISheetPresentationControllerDetent+CustomDetent.h"
 
-static NSString *const UISheetPresentationControllerDetentIdentifierCustomPrefix = @"UISheetPresentationController.Detent.Custom";
-
-API_AVAILABLE(ios(15.0),macCatalyst(15.0))
-UISheetPresentationControllerDetentIdentifier UISheetPresentationControllerDetentIdentifierCustom(CGFloat height) {
-    return [UISheetPresentationControllerDetentIdentifierCustomPrefix stringByAppendingString:[@(height) stringValue]];
-}
-
-@interface UISheetPresentationControllerDetent (CustomDetentPrivate)
-
-// Private API, subject to break in future releases
-+ (instancetype)_detentWithIdentifier:(UISheetPresentationControllerDetentIdentifier)identifier constant:(CGFloat)constant;
-
-@end
-
 @implementation UISheetPresentationControllerDetent (CustomDetent)
 
-+ (instancetype)customDetentWithHeight:(CGFloat)height {
-    UISheetPresentationControllerDetentIdentifier identifier = UISheetPresentationControllerDetentIdentifierCustom(height);
-    return [UISheetPresentationControllerDetent _detentWithIdentifier:identifier constant:height];
++ (instancetype)ti_customDetentWithIdentifier:(UISheetPresentationControllerDetentIdentifier)identifier
+                                       height:(CGFloat)height
+{
+    return [UISheetPresentationControllerDetent customDetentWithIdentifier:identifier
+                                                                   resolver:^CGFloat(id<UISheetPresentationControllerDetentResolutionContext> context) {
+        CGFloat resolvedHeight = MAX(0.0, height);
+        return MIN(resolvedHeight, context.maximumDetentValue);
+    }];
 }
 
 @end
