@@ -1,39 +1,78 @@
-// This is a test harness for your module
-// You should do something interesting in this harness
-// to test out the module and to provide instructions
-// to users on how to use it by example.
+const BottomSheet = require('ti.bottomsheetcontroller');
 
-
-// open a single window
-var win = Ti.UI.createWindow({
-	backgroundColor:'white'
+const win = Ti.UI.createWindow({
+  backgroundColor: '#f5f5f5'
 });
-var label = Ti.UI.createLabel();
-win.add(label);
+
+const openButton = Ti.UI.createButton({
+  title: 'Open Bottom Sheet'
+});
+
+win.add(openButton);
 win.open();
 
-// TODO: write your module tests here
-var ti_popover = require('ti.popover');
-Ti.API.info("module is => " + ti_popover);
+openButton.addEventListener('click', () => {
+  const content = Ti.UI.createView({
+    backgroundColor: 'transparent'
+  });
 
-label.text = ti_popover.example();
+  const title = Ti.UI.createLabel({
+    text: 'Titanium BottomSheetController 2.0',
+    top: 28,
+    left: 24,
+    right: 24,
+    textAlign: Ti.UI.TEXT_ALIGNMENT_CENTER,
+    font: {
+      fontSize: 20,
+      fontWeight: 'bold'
+    }
+  });
 
-Ti.API.info("module exampleProp is => " + ti_popover.exampleProp);
-ti_popover.exampleProp = "This is a test value";
+  const detail = Ti.UI.createLabel({
+    text: 'Drag between bar, preview, and large detents.',
+    top: 68,
+    left: 24,
+    right: 24,
+    textAlign: Ti.UI.TEXT_ALIGNMENT_CENTER
+  });
 
-if (Ti.Platform.name == "android") {
-	var proxy = ti_popover.createExample({
-		message: "Creating an example Proxy",
-		backgroundColor: "red",
-		width: 100,
-		height: 100,
-		top: 100,
-		left: 150
-	});
+  const closeButton = Ti.UI.createButton({
+    title: 'Close',
+    bottom: 28
+  });
 
-	proxy.printMessage("Hello world!");
-	proxy.message = "Hi world!.  It's me again.";
-	proxy.printMessage("Hello world!");
-	win.add(proxy);
-}
+  content.add(title);
+  content.add(detail);
+  content.add(closeButton);
 
+  const sheet = BottomSheet.createBottomSheet({
+    contentView: content,
+    detents: [
+      { identifier: 'bar', height: 96 },
+      { identifier: 'preview', height: 320 },
+      'large'
+    ],
+    startDetent: 'bar',
+    dismissible: false,
+    largestUndimmedDetentIdentifier: 'bar',
+    prefersGrabberVisible: true
+  });
+
+  sheet.addEventListener('open', () => {
+    Ti.API.info('Bottom sheet opened');
+  });
+
+  sheet.addEventListener('detentChange', e => {
+    Ti.API.info('Selected detent: ' + e.selectedDetentIdentifier);
+  });
+
+  sheet.addEventListener('close', () => {
+    Ti.API.info('Bottom sheet closed');
+  });
+
+  closeButton.addEventListener('click', () => {
+    sheet.close({ animated: true });
+  });
+
+  sheet.open({ animated: true });
+});
