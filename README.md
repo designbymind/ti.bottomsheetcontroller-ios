@@ -319,4 +319,4 @@ MIT
 
 ## Author
 
-Marc Bender
+Marc Bender & DesignByMind
