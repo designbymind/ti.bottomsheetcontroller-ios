@@ -9,8 +9,8 @@ This branch modernizes `ti.bottomsheetcontroller` around Apple's native `UISheet
 - Allow interactive dismissal to be enabled/disabled at runtime without preventing programmatic `close()`.
 - Treat all detents (custom, medium, large) uniformly for selection and events.
 - Support a persistent floating-bar detent that expands upward through additional detents.
-- Expose continuous normalized drag progress between neighboring detents for synchronized UI effects.
 - Preserve native UIKit gestures, scrolling coordination, keyboard handling, accessibility, and current iOS appearance.
+- Keep continuous frame-by-frame detent progress as an optional future enhancement rather than core v2 functionality.
 
 ## Phase 1 — System-sheet-only cleanup ✅
 
@@ -40,11 +40,9 @@ const sheet = BottomSheet.createBottomSheet({
 
 sheet.open();
 
-// Runtime changes take effect immediately.
 sheet.dismissible = true;
 sheet.dismissible = false;
 
-// Programmatic dismissal is always allowed.
 sheet.close();
 ```
 
@@ -99,15 +97,12 @@ Recommended v2 configuration:
 ```js
 const sheet = BottomSheet.createBottomSheet({
   contentView: content,
-
-  // Explicitly smallest -> largest.
   detents: [
     { identifier: 'bar', height: 76 },
     { identifier: 'reply', height: 390 },
     'medium',
     'large'
   ],
-
   startDetent: 'bar',
   dismissible: false,
   largestUndimmedDetentIdentifier: 'bar',
@@ -169,20 +164,25 @@ Phase 5.5 has been build-tested successfully on iOS 26 and confirmed to display 
 
 Continuous frame-by-frame detent progress is intentionally deferred. The current module remains a thin UIKit wrapper without a custom display-link/geometry-sampling subsystem. The feature can be revisited later if a concrete UI requirement justifies the added native and bridge complexity.
 
-## Phase 7 — Scroll, keyboard, and interaction parity — IMPLEMENTED, TEST PENDING
+## Phase 7 — Scroll, keyboard, and interaction parity ✅
 
 Phase 7 focuses on native UIKit parity rather than adding custom interaction machinery.
 
-- UIKit defaults are now preserved unless a Titanium property explicitly overrides them. This applies to scrolling expansion, compact-height edge attachment, edge-attached width behavior, grabber visibility, and corner radius.
-- `prefersScrollingExpandsWhenScrolledToEdge`, `prefersEdgeAttachedInCompactHeight`, `widthFollowsPreferredContentSizeWhenEdgeAttached`, `prefersGrabberVisible`, and `preferredCornerRadius` can now update the presented system sheet at runtime.
+- UIKit defaults are preserved unless a Titanium property explicitly overrides them. This applies to scrolling expansion, compact-height edge attachment, edge-attached width behavior, grabber visibility, and corner radius.
+- `prefersScrollingExpandsWhenScrolledToEdge`, `prefersEdgeAttachedInCompactHeight`, `widthFollowsPreferredContentSizeWhenEdgeAttached`, `prefersGrabberVisible`, and `preferredCornerRadius` can update the presented system sheet at runtime.
 - `largestUndimmedDetentIdentifier` supports runtime updates using friendly/custom identifiers and validates that the target detent is actually configured before applying it.
-- `changeCurrentDetent()` now dispatches UIKit detent animation work onto the main thread.
+- `changeCurrentDetent()` dispatches UIKit detent animation work onto the main thread.
 - Keyboard resizing, scroll-view handoff, accessibility, and iOS 26+ floating/Liquid Glass presentation remain UIKit-owned. No custom keyboard observer, gesture recognizer, or accessibility replacement was added.
 
-Recommended validation covers scroll views at multiple detents, keyboard presentation/dismissal, background interaction at the configured undimmed detent, runtime property changes, rotation/compact-height behavior, VoiceOver, and manual/programmatic detent transitions.
+Phase 7 has been build-tested successfully, including the native interaction and appearance behavior targeted by this phase.
 
-## Phase 8 — API/documentation cleanup
+## Phase 8 — API/documentation cleanup ✅
 
-- Remove obsolete fallback documentation and examples.
-- Add updated Titanium examples for persistent floating bars and expanding sheets.
-- Document events, runtime properties, supported iOS versions, and migration notes.
+- Removed obsolete fallback/non-system documentation from the public README.
+- Replaced the old example harness with a working v2.0.0 system-sheet example.
+- Replaced generated `ti.popover` boilerplate documentation with the actual module API.
+- Replaced the iOS skeleton README with module-specific architecture/build notes.
+- Documented ordered detents, runtime properties, events, Liquid Glass behavior, supported iOS versions, and 1.x migration notes.
+- Documented Phase 6 as intentionally deferred rather than part of v2.0.0.
+
+Phase 8 completes the v2.0.0 modernization work. The branch is ready for final merge/tag/release handling.
