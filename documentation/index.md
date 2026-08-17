@@ -1,39 +1,78 @@
-# ti.popover Module
+# ti.bottomsheetcontroller
 
-## Description
+Native iOS bottom sheets for Titanium, backed by `UISheetPresentationController`.
 
-TODO: Enter your module description here
+Version 2.0.0 is system-sheet-only and supports native UIKit gestures, system detents, named custom detents, runtime dismissal control, background interaction, and native iOS appearance including Liquid Glass on iOS 26+.
 
-## Accessing the ti.popover Module
+## Access
 
-To access this module from JavaScript, you would do the following:
+```js
+const BottomSheet = require('ti.bottomsheetcontroller');
+```
 
-    var ti_popover = require("ti.popover");
+## Create a sheet
 
-The ti_popover variable is a reference to the Module object.
+```js
+const sheet = BottomSheet.createBottomSheet({
+  contentView: content,
+  detents: [
+    { identifier: 'bar', height: 76 },
+    'medium',
+    'large'
+  ],
+  startDetent: 'bar',
+  dismissible: false,
+  largestUndimmedDetentIdentifier: 'bar'
+});
 
-## Reference
+sheet.open();
+```
 
-TODO: If your module has an API, you should document
-the reference here.
+## Methods
 
-### ti_popover.function
+- `open({ animated })`
+- `close({ animated })`
+- `changeCurrentDetent(identifier)`
 
-TODO: This is an example of a module function.
+## Properties
 
-### ti_popover.property
+- `selectedDetentIdentifier` — read-only current detent name.
+- `dismissible` — enables/disables interactive dismissal at runtime.
+- `detents` — ordered array of `medium`, `large`, or `{ identifier, height }` custom detents.
+- `customDetents` — legacy-compatible custom-detent dictionary.
+- `startDetent` — initial configured detent identifier.
+- `largestUndimmedDetentIdentifier` — largest detent that keeps the presenting view undimmed/interactable.
+- `prefersScrollingExpandsWhenScrolledToEdge`
+- `prefersEdgeAttachedInCompactHeight`
+- `widthFollowsPreferredContentSizeWhenEdgeAttached`
+- `prefersGrabberVisible`
+- `preferredCornerRadius`
+- `backgroundColor`
+- `contentView`
+- `closeButton`
 
-TODO: This is an example of a module property.
+Unless explicitly supplied, native UIKit sheet properties keep their system defaults.
 
-## Usage
+## Events
 
-TODO: Enter your usage example here
+- `open`
+- `close`
+- `dismissing`
+- `detentChange` — payload contains `selectedDetentIdentifier`.
 
-## Author
+## Platform behavior
 
-TODO: Enter your author name, email and other contact
-details you want to share here.
+- iOS 15+ uses `UISheetPresentationController`.
+- Custom detents require iOS 16+.
+- Leaving `backgroundColor` unset allows UIKit to render its native sheet material, including Liquid Glass on iOS 26+.
+- Keyboard coordination, scroll handoff, accessibility, and sheet gestures remain UIKit-owned.
+
+## Migration from 1.x
+
+The legacy custom/fallback sheet implementation and all `nonSystemSheet*` properties were removed in 2.0.0. Migrate to native detents, `dismissible`, and `largestUndimmedDetentIdentifier`.
+
+See the repository `README.md` for complete examples and `MODERNIZATION.md` for the v2 implementation history.
 
 ## License
 
-TODO: Enter your license/legal information here.
+MIT
