@@ -165,46 +165,21 @@ This phase intentionally does not add a custom `UIVisualEffectView` or simulated
 
 Phase 5.5 has been build-tested successfully on iOS 26 and confirmed to display the native Liquid Glass sheet appearance when no custom background color is supplied.
 
-## Phase 6 — Continuous detent progress
+## Phase 6 — Continuous detent progress — DEFERRED
 
-Add a continuous `detentProgress` event synchronized with the sheet's live position.
+Continuous frame-by-frame detent progress is intentionally deferred. The current module remains a thin UIKit wrapper without a custom display-link/geometry-sampling subsystem. The feature can be revisited later if a concrete UI requirement justifies the added native and bridge complexity.
 
-For neighboring detents at 400 pt and 800 pt:
+## Phase 7 — Scroll, keyboard, and interaction parity — IMPLEMENTED, TEST PENDING
 
-- 400 pt => `progress: 0.0`
-- 600 pt => `progress: 0.5`
-- 800 pt => `progress: 1.0`
+Phase 7 focuses on native UIKit parity rather than adding custom interaction machinery.
 
-Proposed event payload:
+- UIKit defaults are now preserved unless a Titanium property explicitly overrides them. This applies to scrolling expansion, compact-height edge attachment, edge-attached width behavior, grabber visibility, and corner radius.
+- `prefersScrollingExpandsWhenScrolledToEdge`, `prefersEdgeAttachedInCompactHeight`, `widthFollowsPreferredContentSizeWhenEdgeAttached`, `prefersGrabberVisible`, and `preferredCornerRadius` can now update the presented system sheet at runtime.
+- `largestUndimmedDetentIdentifier` supports runtime updates using friendly/custom identifiers and validates that the target detent is actually configured before applying it.
+- `changeCurrentDetent()` now dispatches UIKit detent animation work onto the main thread.
+- Keyboard resizing, scroll-view handoff, accessibility, and iOS 26+ floating/Liquid Glass presentation remain UIKit-owned. No custom keyboard observer, gesture recognizer, or accessibility replacement was added.
 
-```js
-{
-  progress: 0.5,
-  lowerDetent: 'one',
-  upperDetent: 'two',
-  lowerHeight: 400,
-  upperHeight: 800,
-  currentHeight: 600,
-  direction: 'up'
-}
-```
-
-Progress is always normalized from the lower detent (`0.0`) to the upper detent (`1.0`), independent of drag direction. `direction` separately reports `up` or `down`.
-
-The native implementation will sample the presented sheet geometry with a `CADisplayLink` while the sheet is moving, calculate the two neighboring detents, and emit frame-synchronized progress values without replacing UIKit's native gesture handling.
-
-A read-only `detentProgress` property may also expose the most recent normalized value.
-
-## Phase 7 — Scroll, keyboard, and interaction parity
-
-Compare behavior with TrueSheet and close remaining UX gaps while staying on public UIKit APIs:
-
-- scroll-view handoff
-- keyboard resizing/coordination
-- background interaction through `largestUndimmedDetentIdentifier`
-- accessibility
-- programmatic detent transitions
-- iOS 26+ floating sheet appearance
+Recommended validation covers scroll views at multiple detents, keyboard presentation/dismissal, background interaction at the configured undimmed detent, runtime property changes, rotation/compact-height behavior, VoiceOver, and manual/programmatic detent transitions.
 
 ## Phase 8 — API/documentation cleanup
 
