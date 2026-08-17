@@ -116,36 +116,41 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   ENSURE_ARG_COUNT(value, 1);
 
   NSString *requestedIdentifier = [TiUtils stringValue:[value objectAtIndex:0]];
-
-  if (@available(iOS 15.0, macCatalyst 15.0, *)) {
-    if (bottomSheet == nil || requestedIdentifier == nil) {
-      return;
-    }
-
-    UISheetPresentationControllerDetentIdentifier nativeIdentifier = TiNativeDetentIdentifier(requestedIdentifier);
-
-    if (![configuredDetentIdentifiers containsObject:nativeIdentifier]) {
-      NSLog(@"[WARN] BottomSheet detent '%@' is not configured. Ignoring changeCurrentDetent().", requestedIdentifier);
-      return;
-    }
-
-    NSString *currentIdentifier = TiPublicDetentIdentifier(bottomSheet.selectedDetentIdentifier);
-    NSString *targetIdentifier = TiPublicDetentIdentifier(nativeIdentifier);
-
-    if ([currentIdentifier isEqualToString:targetIdentifier]) {
-      return;
-    }
-
-    [bottomSheet animateChanges:^{
-      self->bottomSheet.selectedDetentIdentifier = nativeIdentifier;
-    }];
-
-    // UISheetPresentationController's delegate reliably reports interactive
-    // detent changes, but programmatic selectedDetentIdentifier assignments do
-    // not consistently invoke that callback. Emit the same normalized event here
-    // so Titanium observes both interaction paths uniformly.
-    [self fireEvent:@"detentChange" withObject:@{ @"selectedDetentIdentifier" : targetIdentifier }];
+  if (requestedIdentifier == nil) {
+    return;
   }
+
+  TiThreadPerformOnMainThread(^{
+    if (@available(iOS 15.0, macCatalyst 15.0, *)) {
+      if (self->bottomSheet == nil) {
+        return;
+      }
+
+      UISheetPresentationControllerDetentIdentifier nativeIdentifier = TiNativeDetentIdentifier(requestedIdentifier);
+
+      if (![self->configuredDetentIdentifiers containsObject:nativeIdentifier]) {
+        NSLog(@"[WARN] BottomSheet detent '%@' is not configured. Ignoring changeCurrentDetent().", requestedIdentifier);
+        return;
+      }
+
+      NSString *currentIdentifier = TiPublicDetentIdentifier(self->bottomSheet.selectedDetentIdentifier);
+      NSString *targetIdentifier = TiPublicDetentIdentifier(nativeIdentifier);
+
+      if ([currentIdentifier isEqualToString:targetIdentifier]) {
+        return;
+      }
+
+      [self->bottomSheet animateChanges:^{
+        self->bottomSheet.selectedDetentIdentifier = nativeIdentifier;
+      }];
+
+      // UISheetPresentationController's delegate reliably reports interactive
+      // detent changes, but programmatic selectedDetentIdentifier assignments do
+      // not consistently invoke that callback. Emit the same normalized event here
+      // so Titanium observes both interaction paths uniformly.
+      [self fireEvent:@"detentChange" withObject:@{ @"selectedDetentIdentifier" : targetIdentifier }];
+    }
+  }, NO);
 }
 
 - (void)setDismissible:(id)value
@@ -165,25 +170,98 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   return dismissible;
 }
 
+- (void)setPrefersScrollingExpandsWhenScrolledToEdge:(id)value
+{
+  BOOL enabled = [TiUtils boolValue:value];
+  [self replaceValue:[NSNumber numberWithBool:enabled] forKey:@"prefersScrollingExpandsWhenScrolledToEdge" notification:NO];
+
+  TiThreadPerformOnMainThread(^{
+    if (@available(iOS 15.0, macCatalyst 15.0, *)) {
+      if (self->bottomSheet != nil) {
+        self->bottomSheet.prefersScrollingExpandsWhenScrolledToEdge = enabled;
+      }
+    }
+  }, NO);
+}
+
+- (void)setPrefersEdgeAttachedInCompactHeight:(id)value
+{
+  BOOL enabled = [TiUtils boolValue:value];
+  [self replaceValue:[NSNumber numberWithBool:enabled] forKey:@"prefersEdgeAttachedInCompactHeight" notification:NO];
+
+  TiThreadPerformOnMainThread(^{
+    if (@available(iOS 15.0, macCatalyst 15.0, *)) {
+      if (self->bottomSheet != nil) {
+        self->bottomSheet.prefersEdgeAttachedInCompactHeight = enabled;
+      }
+    }
+  }, NO);
+}
+
+- (void)setWidthFollowsPreferredContentSizeWhenEdgeAttached:(id)value
+{
+  BOOL enabled = [TiUtils boolValue:value];
+  [self replaceValue:[NSNumber numberWithBool:enabled] forKey:@"widthFollowsPreferredContentSizeWhenEdgeAttached" notification:NO];
+
+  TiThreadPerformOnMainThread(^{
+    if (@available(iOS 15.0, macCatalyst 15.0, *)) {
+      if (self->bottomSheet != nil) {
+        self->bottomSheet.widthFollowsPreferredContentSizeWhenEdgeAttached = enabled;
+      }
+    }
+  }, NO);
+}
+
+- (void)setPrefersGrabberVisible:(id)value
+{
+  BOOL visible = [TiUtils boolValue:value];
+  [self replaceValue:[NSNumber numberWithBool:visible] forKey:@"prefersGrabberVisible" notification:NO];
+
+  TiThreadPerformOnMainThread(^{
+    if (@available(iOS 15.0, macCatalyst 15.0, *)) {
+      if (self->bottomSheet != nil) {
+        self->bottomSheet.prefersGrabberVisible = visible;
+      }
+    }
+  }, NO);
+}
+
+- (void)setPreferredCornerRadius:(id)value
+{
+  [self replaceValue:value forKey:@"preferredCornerRadius" notification:NO];
+
+  TiThreadPerformOnMainThread(^{
+    if (@available(iOS 15.0, macCatalyst 15.0, *)) {
+      if (self->bottomSheet != nil) {
+        self->bottomSheet.preferredCornerRadius = [TiUtils floatValue:value];
+      }
+    }
+  }, NO);
+}
+
 - (void)setLargestUndimmedDetentIdentifier:(id)value
 {
   NSString *identifier = [TiUtils stringValue:value];
 
   RELEASE_TO_NIL(_largestUndimmedDetentIdentifier);
+  _largestUndimmedDetentIdentifier = [TiNativeDetentIdentifier(identifier) copy];
+  [self replaceValue:(identifier != nil ? identifier : (id)[NSNull null]) forKey:@"largestUndimmedDetentIdentifier" notification:NO];
 
-  if ([identifier isEqualToString:@"large"]) {
-    _largestUndimmedDetentIdentifier = [UISheetPresentationControllerDetentIdentifierLarge copy];
-  } else if ([identifier isEqualToString:@"medium"]) {
-    _largestUndimmedDetentIdentifier = [UISheetPresentationControllerDetentIdentifierMedium copy];
-  } else {
-    _largestUndimmedDetentIdentifier = [identifier copy];
-  }
+  TiThreadPerformOnMainThread(^{
+    if (@available(iOS 15.0, macCatalyst 15.0, *)) {
+      if (self->bottomSheet == nil) {
+        return;
+      }
 
-  if (@available(iOS 15.0, macCatalyst 15.0, *)) {
-    if (bottomSheet != nil) {
-      bottomSheet.largestUndimmedDetentIdentifier = _largestUndimmedDetentIdentifier;
+      if (self->_largestUndimmedDetentIdentifier != nil &&
+          ![self->configuredDetentIdentifiers containsObject:self->_largestUndimmedDetentIdentifier]) {
+        NSLog(@"[WARN] BottomSheet largestUndimmedDetentIdentifier '%@' is not configured. Ignoring runtime update.", identifier);
+        return;
+      }
+
+      self->bottomSheet.largestUndimmedDetentIdentifier = self->_largestUndimmedDetentIdentifier;
     }
-  }
+  }, NO);
 }
 
 - (void)setCloseButton:(id)value
@@ -564,14 +642,33 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
 
     bottomSheet.delegate = self;
 
-    if ([self valueForKey:@"preferredCornerRadius"]) {
-      bottomSheet.preferredCornerRadius = [TiUtils floatValue:[self valueForKey:@"preferredCornerRadius"]];
+    // Preserve UIKit defaults unless Titanium explicitly configures an override.
+    // This keeps scrolling, compact-height layout, grabber appearance, and future
+    // system behavior aligned with the native sheet implementation.
+    id preferredCornerRadiusValue = [self valueForKey:@"preferredCornerRadius"];
+    if (preferredCornerRadiusValue != nil) {
+      bottomSheet.preferredCornerRadius = [TiUtils floatValue:preferredCornerRadiusValue];
     }
 
-    bottomSheet.prefersScrollingExpandsWhenScrolledToEdge = [TiUtils boolValue:[self valueForKey:@"prefersScrollingExpandsWhenScrolledToEdge"] def:NO];
-    bottomSheet.prefersEdgeAttachedInCompactHeight = [TiUtils boolValue:[self valueForKey:@"prefersEdgeAttachedInCompactHeight"] def:NO];
-    bottomSheet.widthFollowsPreferredContentSizeWhenEdgeAttached = [TiUtils boolValue:[self valueForKey:@"widthFollowsPreferredContentSizeWhenEdgeAttached"] def:NO];
-    bottomSheet.prefersGrabberVisible = [TiUtils boolValue:[self valueForKey:@"prefersGrabberVisible"] def:YES];
+    id scrollingExpandsValue = [self valueForKey:@"prefersScrollingExpandsWhenScrolledToEdge"];
+    if (scrollingExpandsValue != nil) {
+      bottomSheet.prefersScrollingExpandsWhenScrolledToEdge = [TiUtils boolValue:scrollingExpandsValue];
+    }
+
+    id edgeAttachedValue = [self valueForKey:@"prefersEdgeAttachedInCompactHeight"];
+    if (edgeAttachedValue != nil) {
+      bottomSheet.prefersEdgeAttachedInCompactHeight = [TiUtils boolValue:edgeAttachedValue];
+    }
+
+    id widthFollowsValue = [self valueForKey:@"widthFollowsPreferredContentSizeWhenEdgeAttached"];
+    if (widthFollowsValue != nil) {
+      bottomSheet.widthFollowsPreferredContentSizeWhenEdgeAttached = [TiUtils boolValue:widthFollowsValue];
+    }
+
+    id grabberVisibleValue = [self valueForKey:@"prefersGrabberVisible"];
+    if (grabberVisibleValue != nil) {
+      bottomSheet.prefersGrabberVisible = [TiUtils boolValue:grabberVisibleValue];
+    }
 
     userDetents = [self valueForKey:@"detents"];
     customDetents = [self valueForKey:@"customDetents"];
@@ -611,7 +708,11 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
     }
 
     if (_largestUndimmedDetentIdentifier != nil) {
-      bottomSheet.largestUndimmedDetentIdentifier = _largestUndimmedDetentIdentifier;
+      if ([configuredDetentIdentifiers containsObject:_largestUndimmedDetentIdentifier]) {
+        bottomSheet.largestUndimmedDetentIdentifier = _largestUndimmedDetentIdentifier;
+      } else {
+        NSLog(@"[WARN] BottomSheet largestUndimmedDetentIdentifier '%@' is not configured. UIKit default dimming will be used.", TiPublicDetentIdentifier(_largestUndimmedDetentIdentifier));
+      }
     } else if ([self valueForKey:@"largestUndimmedDetentIdentifier"]) {
       [self setLargestUndimmedDetentIdentifier:[self valueForKey:@"largestUndimmedDetentIdentifier"]];
     }
