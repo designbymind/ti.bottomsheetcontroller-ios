@@ -1,140 +1,32 @@
-# Axway Titanium iOS Project
+# ti.bottomsheetcontroller iOS module
 
-This is a skeleton Titanium iOS module project. Modules can be used to extend 
-the functionality of Titanium by providing additional native code that is compiled 
-into your application at build time and can expose certain APIs into JavaScript.
+This directory contains the native iOS implementation for `ti.bottomsheetcontroller` 2.0.0.
 
-## Naming
+The module is backed exclusively by Apple's public `UISheetPresentationController` APIs.
 
-Choose a unique module id for your module. We usually stick to a naming convention 
-like `ti.map` or `titanium-map` to make it more easy to find Titanium modules in the wild.
+## Platform support
 
+- iOS 15+ for native system sheets
+- iOS 16+ for public custom detents
+- Titanium SDK 13.3.0.GA or newer, per `manifest`
 
-## Components
+## Build
 
-Components that are exposed by your module must follow a special naming convention.
-A component (widget, proxy, etc) must be named with the pattern:
+Build the module using your normal Titanium iOS module workflow. The module manifest version is `2.0.0`.
 
-```
-Ti<ModuleName><ComponentName>Proxy
-```
+## Architecture
 
-For example, if you component was called Foo, your proxy would be named:
+Version 2 intentionally keeps the native implementation thin:
 
-```
-TiMyfirstFooProxy
-```
+- UIKit owns sheet presentation and gestures.
+- UIKit owns scrolling/keyboard coordination and accessibility.
+- Native/custom detents are configured through public APIs.
+- Interactive dismissal is controlled with `modalInPresentation` and the presentation-controller delegate.
+- No fallback sheet engine or private detent API remains.
+- No custom blur is injected; leaving the background unset allows native UIKit sheet materials such as Liquid Glass to render.
 
-For view proxies or widgets, you must create both a view proxy and a view implementation.
-If you widget was named proxy, you would create the following files:
+## Public JavaScript API
 
-```
-TiMyfirstFooProxy.h
-TiMyfirstFooProxy.m
-TiMyfirstFoo.h
-TiMyfirstFoo.m
-```
+See the repository root `README.md` for the supported properties, methods, events, migration notes, and working examples.
 
-The view implementation is named the same except it does contain the suffix `Proxy`.
-
-View implementations extend the Titanium base class `TiUIView`. View Proxies extend the
-Titanium base class `TiUIViewProxy` or `TiUIWidgetProxy`.
-
-For proxies that are simply native objects that can be returned to JavaScript, you can
-simply extend `TiProxy` and no view implementation is required.
-
-## Get started
-
-1. Edit manifest with the appropriate details about your module.
-2. Edit LICENSE to add your license details.
-3. Place any assets (such as PNG files) that are required in the assets folder.
-4. Edit the titanium.xcconfig and make sure you're building for the right Titanium version.
-5. Code and build.
-
-## Build time configuration
-
-You can edit the file `module.xcconfig` to include any build time settings that should be
-set during application compilation that your module requires. This file will automatically get imported 
-in the main application project.
-
-For more information about this file, please see the [Apple documentation](https://developer.apple.com/library/content/featuredarticles/XcodeConcepts/Concept-Build_Settings.html).
-
-# Documentation
-
-You should provide at least minimal documentation for your module in `documentation` folder using the 
-Markdown syntax.
-
-For more information on the Markdown syntax, refer to [this documentation](https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet).
-
-## Examples
-
-The `example` directory contains a skeleton application test harness that can be
-used for testing and providing an example of usage to the users of your module.
-
-## Install
-
-1. Run `appc run -p ios --build-only` which creates your distribution package
-2. Switch to `~/Library/Application Support/Titanium`
-3. Copy this zip file into the folder of your Titanium SDK or copy it to your local project
-
-## Register the module
-
-Register your module with your application by editing `tiapp.xml` and adding your module.
-Example:
-
-```
-<modules>
-  <module version="0.1">__MODULE_ID__</module>
-</modules>
-```
-
-When you run your project, the compiler will know automatically compile in your module
-dependencies and copy appropriate image assets into the application.
-
-## Using the module
-
-To use your module in code, you will need to require it.
-
-For example,
-
-```js
-var myModule = require('__MODULE_ID__');
-myModule.foo();
-```
-
-## Pure JavaScript modules
-
-You can write a pure JavaScript "natively compiled" module. This is nice if you
-want to distribute a JavaScript module pre-compiled.
-
-To create a module, create a file named __MODULE_ID__.js under the assets folder.
-This file must be in the CommonJS format. For example:
-
-```js
-exports.echo = (content) => {
-  return content;
-};
-```
-
-Any functions and properties that are exported will be made available as part of your
-module. All other code inside your JavaScript will be private to your module.
-
-For pure JavaScript module, you don't need to modify any of the Objective-C module code. You
-can leave it as-is and build.
-
-## Testing
-
-Run the `appc` CLI to test your module or test from within Xcode.
-To test with the script, execute:
-
-```
-appc run --project-dir <your-module-directory>
-```
-
-This will execute the app.js in the example folder as a Titanium application.
-
-## Distribution
-
-You can either open source your module or distribute your module via the [Appcelerator Marketplace](https://marketplace.appcelerator.com).
-
-Cheers!
+See `MODERNIZATION.md` for the implementation history and design decisions behind version 2.0.0.
