@@ -3,94 +3,41 @@
  * Copyright (c) 2009-2021 by Appcelerator, Inc. All Rights Reserved.
  * Licensed under the terms of the Apache Public License
  * Please see the LICENSE included with this distribution for details.
- * 
- * WARNING: This is generated code. Modify at your own risk and without support.
  */
 #define USE_TI_UINAVIGATIONWINDOW
-#define USE_TI_UISCROLLVIEW // Enable access to the core class
-#define USE_TI_UITABLEVIEW // Enable access to the core class
-#define USE_TI_UILISTVIEW
 
-
-#import <TitaniumKit/TiViewController.h>
-#import <TitaniumKit/TiViewProxy.h>
 #import <TitaniumKit/TiProxy.h>
 #import <TitaniumKit/TitaniumKit.h>
+#import <TitaniumKit/TiViewController.h>
+#import <TitaniumKit/TiViewProxy.h>
 #import "TiUINavigationWindowProxy.h"
 #import "TiUINavigationWindowInternal.h"
 #import "TiWindowProxy+Addons.h"
 
-#import <TitaniumKit/TiViewTemplate.h>
-#import "BottomSheetViewController.h"
-
-
-@interface TiBottomsheetcontrollerProxy : TiProxy <UISheetPresentationControllerDelegate, UIGestureRecognizerDelegate, UIScrollViewDelegate, TiProxyObserver> {
-//@private
-  pthread_rwlock_t listenerLockSheet;
-  NSMutableDictionary *listenersSheet;
-  UIEdgeInsets insets;
-  UIView *containerView;
-  UIView *contentViewOfSheet;
-  UIViewController *childController;
-  UIScrollView *myScrollView;
-  BOOL nonSystemSheetShouldScroll;
-  BOOL nonSystemSheetAutomaticStartPositionFromContentViewHeight;
-  BOOL eventFired;
-  BOOL addScrollInsetTop;
-  BOOL useNavController;
-  BOOL defaultsToNonSystemSheet;
-  BOOL contentViewScrollingDisabled;
+@interface TiBottomsheetcontrollerProxy : TiProxy <UISheetPresentationControllerDelegate, TiProxyObserver> {
   CGSize TiBottomSheetContentSize;
   UIViewController *viewController;
-  TiUINavigationWindowProxy *centerProxy;
-  UISheetPresentationController *bottomSheet API_AVAILABLE(ios(15.0),macCatalyst(15.0));
-  UIView *handle;
-  NSDictionary *userDetents;
+  UISheetPresentationController *bottomSheet API_AVAILABLE(ios(15.0), macCatalyst(15.0));
+  id userDetents;
   NSDictionary *customDetents;
-       
-  NSString *detentStatus;
-  NSString *lastDetentStatus;
-  UIView *backgroundView;
-  CGFloat realContentHeight;
-  CGFloat additionalBottomInset;
-  CGFloat scrollableContentHeight;
+  NSMutableSet *configuredDetentIdentifiers;
   UIEdgeInsets bottomSheetSafeAreaInset;
   TiViewProxy *contentViewProxy;
   TiViewProxy *closeButtonProxy;
+  UIView *closeButtonView;
   BOOL animated;
   BOOL bottomSheetInitialized;
+  BOOL eventFired;
   BOOL isDismissing;
-  NSCondition *bottomSheetclosingCondition;
+  BOOL dismissible;
+  BOOL deviceRotated;
   TiDimension poWidth;
   TiDimension poHeight;
-  TiDimension poBWidth;
-  TiDimension poBHeight;
-  BOOL deviceRotated;
-  TiBottomsheetcontrollerProxy *currentTiBottomSheet;
-  UIView *closeButtonView;
-  BottomSheetViewController *customBottomSheet;
   NSString *initalSelectedDetent;
 }
 
-
-@property (assign, nonatomic) BOOL fixedHeight;
-@property (assign, nonatomic) BOOL insetsDone;
-@property (assign, nonatomic) bool dismissing;
 @property (assign, nonatomic) TiViewProxy * _Nonnull viewProxy;
-@property(nonatomic, copy) NSArray<UISheetPresentationControllerDetent *> * detents API_AVAILABLE(ios(15.0),macCatalyst(15.0));
-@property(nonatomic, copy, nullable) UISheetPresentationControllerDetentIdentifier largestUndimmedDetentIdentifier API_AVAILABLE(ios(15.0),macCatalyst(15.0));
-
-- (void)sendEvent:(id _Nonnull)args;
-- (UIView* _Nonnull)backgroundView;
-- (UIView* _Nonnull)containerView;
-- (CGFloat)realContentHeight;
-- (CGFloat)scrollableContentHeight;
-- (BOOL)nonSystemSheetAutomaticStartPositionFromContentViewHeight;
-- (UIScrollView* _Nonnull)scrollView;
-- (BOOL)nonSystemSheetShouldScroll;
-- (UIView* _Nonnull)contentViewOfSheet;
-@end
-
-@interface myViewController : UIViewController
+@property(nonatomic, copy) NSArray<UISheetPresentationControllerDetent *> *detents API_AVAILABLE(ios(15.0), macCatalyst(15.0));
+@property(nonatomic, copy, nullable) UISheetPresentationControllerDetentIdentifier largestUndimmedDetentIdentifier API_AVAILABLE(ios(15.0), macCatalyst(15.0));
 
 @end
