@@ -2,6 +2,8 @@
 ios/*.zip
 ios/dist
 ios/build
+ios/metadata.json
+__pycache__/
 ios/Carthage
 ios/Cartfile.resolved
 ios/run.command

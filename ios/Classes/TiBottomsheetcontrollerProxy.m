@@ -7,6 +7,7 @@
 #define USE_TI_UINAVIGATIONWINDOW
 
 #import "TiBottomsheetcontrollerProxy.h"
+#import "TiSheetPanGate.h"
 #import "TiBottomsheetcontrollerModule.h"
 #import "UISheetPresentationControllerDetent+CustomDetent.h"
 #import <TitaniumKit/TiApp.h>
@@ -43,6 +44,151 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   return (UISheetPresentationControllerDetentIdentifier)identifier;
 }
 
+// Optional content effects only: UIKit continues to own sheet geometry and gestures.
+@interface TiSheetEffectTarget : NSObject
+@property(nonatomic, retain) TiViewProxy *proxy;
+@property(nonatomic, retain) NSDictionary *from;
+@property(nonatomic, retain) NSDictionary *to;
+@property(nonatomic, assign) CATransform3D originalTransform;
+@property(nonatomic, assign) float originalOpacity;
+@property(nonatomic, assign) CGFloat originalRadius;
+@property(nonatomic, assign) BOOL originalMasks;
+@end
+@implementation TiSheetEffectTarget
+- (void)dealloc { [_proxy release]; [_from release]; [_to release]; [super dealloc]; }
+@end
+
+@interface TiSheetEffectTracker : NSObject {
+  UIViewController *_controller; // Non-owning; proxy stops tracker before controller teardown.
+  CADisplayLink *_displayLink;
+  NSMutableArray *_targets;
+  CGFloat _startHeight, _endHeight;
+}
+- (instancetype)initWithController:(UIViewController *)controller configuration:(NSDictionary *)config;
+- (void)tick:(CADisplayLink *)link;
+- (void)stop;
+- (void)setPaused:(BOOL)paused;
+@end
+
+static CGFloat TiSheetEffectValue(NSDictionary *state, NSString *key, CGFloat fallback)
+{
+  id value = [state objectForKey:key];
+  if (![value isKindOfClass:[NSNumber class]]) return fallback;
+  CGFloat number = [value doubleValue];
+  return isfinite(number) ? number : fallback;
+}
+
+@implementation TiSheetEffectTracker
+- (instancetype)initWithController:(UIViewController *)controller configuration:(NSDictionary *)config
+{
+  if ((self = [super init])) {
+    _controller = controller;
+    _startHeight = TiSheetEffectValue(config, @"startHeight", NAN);
+    _endHeight = TiSheetEffectValue(config, @"endHeight", NAN);
+    if (!isfinite(_startHeight) || !isfinite(_endHeight) || _startHeight < 0 || _endHeight <= _startHeight) {
+      NSLog(@"[WARN] detentEffects requires finite startHeight >= 0 and endHeight > startHeight.");
+      [self release]; return nil;
+    }
+    _targets = [[NSMutableArray alloc] init];
+    id entries = [config objectForKey:@"views"];
+    if ([entries isKindOfClass:[NSArray class]]) for (id entry in entries) {
+      if (![entry isKindOfClass:[NSDictionary class]]) continue;
+      id proxy = [entry objectForKey:@"view"];
+      if (![proxy isKindOfClass:[TiViewProxy class]]) continue;
+      UIView *view = [(TiViewProxy *)proxy view];
+      if (view == controller.view || ![view isDescendantOfView:controller.view]) {
+        NSLog(@"[WARN] detentEffects targets must be descendants of the sheet content.");
+        continue;
+      }
+      BOOL duplicate = NO;
+      for (TiSheetEffectTarget *existing in _targets) if (existing.proxy == proxy) duplicate = YES;
+      if (duplicate) continue;
+      TiSheetEffectTarget *target = [[[TiSheetEffectTarget alloc] init] autorelease];
+      target.proxy = proxy;
+      id from = [entry objectForKey:@"from"], to = [entry objectForKey:@"to"];
+      target.from = [from isKindOfClass:[NSDictionary class]] ? from : @{};
+      target.to = [to isKindOfClass:[NSDictionary class]] ? to : @{};
+      target.originalTransform = view.layer.transform;
+      target.originalOpacity = view.layer.opacity;
+      target.originalRadius = view.layer.cornerRadius;
+      target.originalMasks = view.layer.masksToBounds;
+      [_targets addObject:target];
+    }
+    if (_targets.count > 0) {
+      _displayLink = [[CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)] retain];
+      [_displayLink addToRunLoop:[NSRunLoop mainRunLoop] forMode:NSRunLoopCommonModes];
+      [self tick:nil];
+    }
+  }
+  return self;
+}
+- (void)tick:(CADisplayLink *)link
+{
+  UIView *presented = _controller.presentationController.presentedView;
+  UIView *container = _controller.presentationController.containerView;
+  if (!presented || !container) return;
+  CALayer *layer = presented.layer.presentationLayer ?: presented.layer;
+  CALayer *containerLayer = container.layer.presentationLayer ?: container.layer;
+  CGRect frame = [layer convertRect:layer.bounds toLayer:containerLayer];
+  CGRect visible = CGRectIntersection(frame, containerLayer.bounds);
+  if (CGRectIsNull(visible)) return;
+  // Custom detent values exclude the bottom safe area when edge-attached.
+  CGFloat inset = fabs(CGRectGetMaxY(frame) - CGRectGetMaxY(containerLayer.bounds)) < 1.0
+      ? _controller.view.safeAreaInsets.bottom : 0;
+  CGFloat height = MAX(0, CGRectGetHeight(visible) - inset);
+  CGFloat progress = MIN(1, MAX(0, (height - _startHeight) / (_endHeight - _startHeight)));
+  [CATransaction begin];
+  [CATransaction setDisableActions:YES];
+  for (TiSheetEffectTarget *target in _targets) {
+    CALayer *targetLayer = target.proxy.view.layer;
+    CGFloat scaleFrom = TiSheetEffectValue(target.from, @"scale", 1);
+    CGFloat scaleTo = TiSheetEffectValue(target.to, @"scale", scaleFrom);
+    CGFloat scale = MAX(0.001, scaleFrom + (scaleTo - scaleFrom) * progress);
+    CGFloat xFrom = TiSheetEffectValue(target.from, @"translationX", 0);
+    CGFloat yFrom = TiSheetEffectValue(target.from, @"translationY", 0);
+    CGFloat x = xFrom + (TiSheetEffectValue(target.to, @"translationX", xFrom) - xFrom) * progress;
+    CGFloat y = yFrom + (TiSheetEffectValue(target.to, @"translationY", yFrom) - yFrom) * progress;
+    CATransform3D effect = CATransform3DMakeTranslation(x, y, 0);
+    effect = CATransform3DScale(effect, scale, scale, 1);
+    targetLayer.transform = CATransform3DConcat(target.originalTransform, effect);
+    if ([target.from objectForKey:@"opacity"] || [target.to objectForKey:@"opacity"]) {
+      CGFloat a = TiSheetEffectValue(target.from, @"opacity", target.originalOpacity);
+      CGFloat b = TiSheetEffectValue(target.to, @"opacity", a);
+      targetLayer.opacity = MIN(1, MAX(0, a + (b - a) * progress));
+    }
+    if ([target.from objectForKey:@"cornerRadius"] || [target.to objectForKey:@"cornerRadius"]) {
+      CGFloat a = TiSheetEffectValue(target.from, @"cornerRadius", target.originalRadius);
+      CGFloat b = TiSheetEffectValue(target.to, @"cornerRadius", a);
+      targetLayer.cornerRadius = MAX(0, a + (b - a) * progress);
+      targetLayer.masksToBounds = YES;
+    }
+  }
+  [CATransaction commit];
+}
+- (void)setPaused:(BOOL)paused
+{
+  _displayLink.paused = paused;
+  if (!paused) [self tick:nil];
+}
+- (void)stop
+{
+  [_displayLink invalidate];
+  [_displayLink release]; _displayLink = nil;
+  [CATransaction begin]; [CATransaction setDisableActions:YES];
+  for (TiSheetEffectTarget *target in _targets) {
+    CALayer *layer = target.proxy.view.layer;
+    layer.transform = target.originalTransform;
+    layer.opacity = target.originalOpacity;
+    layer.cornerRadius = target.originalRadius;
+    layer.masksToBounds = target.originalMasks;
+  }
+  [CATransaction commit];
+  [_targets removeAllObjects];
+  _controller = nil;
+}
+- (void)dealloc { [self stop]; [_targets release]; [super dealloc]; }
+@end
+
 @implementation TiBottomsheetcontrollerProxy
 
 #pragma mark - Setup
@@ -56,6 +202,7 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
     eventFired = NO;
     isDismissing = NO;
     dismissible = YES;
+    interactiveGesturesEnabled = YES;
     deviceRotated = NO;
     configuredDetentIdentifiers = [[NSMutableSet alloc] init];
 
@@ -68,6 +215,12 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
 
 - (void)dealloc
 {
+  [sheetPanGate invalidate];
+  RELEASE_TO_NIL(sheetPanGate);
+  [fullScreenTransition invalidate];
+  RELEASE_TO_NIL(fullScreenTransition);
+  [detentEffectTracker stop];
+  RELEASE_TO_NIL(detentEffectTracker);
   if (viewController != nil && viewController.isViewLoaded) {
     @try {
       [viewController.view removeObserver:self forKeyPath:@"safeAreaInsets"];
@@ -80,8 +233,10 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
     bottomSheet.delegate = nil;
   }
 
+  RELEASE_TO_NIL(retainedSelectedDetent);
   RELEASE_TO_NIL(bottomSheet);
   RELEASE_TO_NIL(viewController);
+  RELEASE_TO_NIL(underlyingWindowProxy);
   RELEASE_TO_NIL(contentViewProxy);
   RELEASE_TO_NIL(closeButtonProxy);
   RELEASE_TO_NIL(closeButtonView);
@@ -101,6 +256,7 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
 
 - (NSString *)selectedDetentIdentifier
 {
+  if (sheetHidden && retainedSelectedDetent != nil) return TiPublicDetentIdentifier(retainedSelectedDetent);
   if (@available(iOS 15.0, macCatalyst 15.0, *)) {
     NSString *identifier = TiPublicDetentIdentifier(bottomSheet.selectedDetentIdentifier);
     if (identifier != nil) {
@@ -133,6 +289,10 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
         return;
       }
 
+      if (self->sheetHidden) {
+        RELEASE_TO_NIL(self->retainedSelectedDetent);
+        self->retainedSelectedDetent = [nativeIdentifier copy];
+      }
       NSString *currentIdentifier = TiPublicDetentIdentifier(self->bottomSheet.selectedDetentIdentifier);
       NSString *targetIdentifier = TiPublicDetentIdentifier(nativeIdentifier);
 
@@ -141,7 +301,9 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
       }
 
       [self->bottomSheet animateChanges:^{
+        [self->sheetPanGate restoreDetentsForSelection];
         self->bottomSheet.selectedDetentIdentifier = nativeIdentifier;
+        [self->sheetPanGate restrictToSelectedDetent];
       }];
 
       // UISheetPresentationController's delegate reliably reports interactive
@@ -152,6 +314,19 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
     }
   }, NO);
 }
+
+- (void)setInteractiveGesturesEnabled:(id)value
+{
+  BOOL enabled = [TiUtils boolValue:value def:YES];
+  [self replaceValue:@(enabled) forKey:@"interactiveGesturesEnabled" notification:NO];
+  TiThreadPerformOnMainThread(^{
+    self->interactiveGesturesEnabled = enabled;
+    [self->sheetPanGate setEnabled:enabled || self->sheetHidden];
+    [self->fullScreenTransition setInteractiveGesturesEnabled:enabled];
+  }, YES);
+}
+
+- (NSNumber *)interactiveGesturesEnabled { return @(interactiveGesturesEnabled); }
 
 - (void)setDismissible:(id)value
 {
@@ -165,9 +340,9 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   }, NO);
 }
 
-- (BOOL)dismissible
+- (NSNumber *)dismissible
 {
-  return dismissible;
+  return [NSNumber numberWithBool:dismissible];
 }
 
 - (void)setPrefersScrollingExpandsWhenScrolledToEdge:(id)value
@@ -218,6 +393,7 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   [self replaceValue:[NSNumber numberWithBool:visible] forKey:@"prefersGrabberVisible" notification:NO];
 
   TiThreadPerformOnMainThread(^{
+    [self->fullScreenTransition setGrabberVisible:visible];
     if (@available(iOS 15.0, macCatalyst 15.0, *)) {
       if (self->bottomSheet != nil) {
         self->bottomSheet.prefersGrabberVisible = visible;
@@ -291,58 +467,134 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   }
 }
 
+// Requests: 1 hide, 2 show, 3 final close. UIKit transitions are serialized.
+- (void)finishSheetTransition
+{
+  sheetTransitioning = NO;
+  NSInteger request = pendingSheetRequest;
+  BOOL requestAnimated = pendingSheetAnimated;
+  pendingSheetRequest = 0;
+  if (request != 0) [self performSheetRequest:request animated:requestAnimated];
+}
+
 - (void)open:(id)args
 {
   ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
-
-  if (bottomSheetInitialized) {
-    NSLog(@"[ERROR] BottomSheet is open. Ignoring call");
-    return;
-  }
-
-  if (contentViewProxy == nil) {
-    NSLog(@"[ERROR] BottomSheet has no contentView. Ignoring call");
-    return;
-  }
-
-  if (@available(iOS 15.0, macCatalyst 15.0, *)) {
-    eventFired = NO;
-    bottomSheetInitialized = YES;
-    animated = [TiUtils boolValue:@"animated" properties:args def:YES];
-
+  BOOL requestedAnimation = [TiUtils boolValue:@"animated" properties:args def:YES];
+  TiThreadPerformOnMainThread(^{
+    if (self->bottomSheetInitialized || self->contentViewProxy == nil) {
+      NSLog(@"[WARN] BottomSheet already initialized or has no contentView. Ignoring open().");
+      return;
+    }
+    NSString *mode = [TiUtils stringValue:[self valueForKey:@"presentationMode"]];
+    if (mode != nil && ![mode isEqualToString:@"native"] && ![mode isEqualToString:@"fullScreen"]) {
+      NSLog(@"[WARN] presentationMode must be 'native' or 'fullScreen'. Ignoring open().");
+      return;
+    }
+    self->fullScreenMode = [mode isEqualToString:@"fullScreen"];
+    self->eventFired = NO;
+    self->bottomSheetInitialized = YES;
+    self->sheetHidden = NO;
+    self->sheetTransitioning = YES;
+    self->pendingSheetRequest = 0;
+    self->isDismissing = NO;
+    self->animated = requestedAnimation;
     [self rememberSelf];
     [self retain];
+    [self initAndShowSheetController];
+  }, YES);
+}
 
-    TiThreadPerformOnMainThread(^{
-      [self initAndShowSheetController];
-      self->isDismissing = NO;
-    }, YES);
-  } else {
-    NSLog(@"[ERROR] ti.bottomsheetcontroller requires iOS 15.0 or newer.");
-  }
+- (void)hide:(id)args
+{
+  ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
+  BOOL requestedAnimation = [TiUtils boolValue:@"animated" properties:args def:YES];
+  TiThreadPerformOnMainThread(^{ [self performSheetRequest:1 animated:requestedAnimation]; }, YES);
+}
+
+- (void)show:(id)args
+{
+  ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
+  BOOL requestedAnimation = [TiUtils boolValue:@"animated" properties:args def:YES];
+  TiThreadPerformOnMainThread(^{ [self performSheetRequest:2 animated:requestedAnimation]; }, YES);
 }
 
 - (void)close:(id)args
 {
   ENSURE_SINGLE_ARG_OR_NIL(args, NSDictionary);
+  BOOL requestedAnimation = [TiUtils boolValue:@"animated" properties:args def:YES];
+  TiThreadPerformOnMainThread(^{ [self performSheetRequest:3 animated:requestedAnimation]; }, YES);
+}
 
-  if (!bottomSheetInitialized) {
-    NSLog(@"BottomSheet is not open. Ignoring call");
+- (void)performSheetRequest:(NSInteger)request animated:(BOOL)requestedAnimation
+{
+  if (!bottomSheetInitialized || isDismissing) return;
+  if (sheetTransitioning) {
+    // Once close is queued, later visibility requests must not cancel cleanup.
+    if (pendingSheetRequest != 3) {
+      pendingSheetRequest = request;
+      pendingSheetAnimated = requestedAnimation;
+    }
+    return;
+  }
+  if ((request == 1 && sheetHidden) || (request == 2 && !sheetHidden)) return;
+
+  if (request == 2) {
+    // Wait for the caller's card/modal to finish closing before calling show().
+    UIViewController *presenter = [[TiApp app].controller topPresentedController];
+    if (presenter.isBeingDismissed || presenter.isBeingPresented || presenter.view.window == nil) {
+      NSLog(@"[WARN] Cannot show BottomSheet while its presenter is transitioning or detached.");
+      return;
+    }
+    sheetTransitioning = YES;
+    animated = requestedAnimation;
+    if ([contentViewProxy isKindOfClass:[TiWindowProxy class]]) {
+      if ([underlyingWindowProxy conformsToProtocol:@protocol(TiWindowProtocol)]) {
+        [(id<TiWindowProtocol>)underlyingWindowProxy resignFocus];
+      }
+      [(TiWindowProxy *)contentViewProxy gainFocus];
+    }
+    [self updateContentSize];
+    [self updatePopoverNow];
     return;
   }
 
-  TiThreadPerformOnMainThread(^{
-    [self->contentViewProxy windowWillClose];
-    self->animated = [TiUtils boolValue:@"animated" properties:args def:YES];
-
-    [[self viewController] dismissViewControllerAnimated:self->animated completion:^{
+  // Hiding must not also dismiss a modal presented by the sheet itself.
+  if (request == 1 && viewController.presentedViewController != nil) {
+    NSLog(@"[WARN] Close the sheet's presented controller before hide().");
+    return;
+  }
+  sheetTransitioning = YES;
+  animated = requestedAnimation;
+  if (request == 1) {
+    RELEASE_TO_NIL(retainedSelectedDetent);
+    retainedSelectedDetent = [bottomSheet.selectedDetentIdentifier copy];
+    [sheetPanGate setEnabled:YES];
+    [viewController dismissViewControllerAnimated:animated completion:^{
+      self->sheetHidden = YES;
+      [self->detentEffectTracker setPaused:YES];
+      if ([self->contentViewProxy isKindOfClass:[TiWindowProxy class]]) {
+        [(TiWindowProxy *)self->contentViewProxy resignFocus];
+        [self restoreUnderlyingWindowFocus];
+      }
+      [self fireEvent:@"hide" withObject:nil];
+      [self finishSheetTransition];
+    }];
+  } else {
+    isDismissing = YES;
+    [sheetPanGate setEnabled:YES];
+    [contentViewProxy windowWillClose];
+    void (^finishClose)(void) = ^{
       if (!self->eventFired) {
         self->eventFired = YES;
         [self fireEvent:@"close" withObject:nil];
         [self cleanup];
       }
-    }];
-  }, YES);
+    };
+    // A hidden controller has no modal to dismiss: still dispose exactly once.
+    if (sheetHidden) finishClose();
+    else [viewController dismissViewControllerAnimated:animated completion:finishClose];
+  }
 }
 
 #pragma mark - Controller lifecycle
@@ -367,12 +619,12 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   return viewController;
 }
 
-- (void)cleanup
+- (void)restoreUnderlyingWindowFocus
 {
-  [contentViewProxy setProxyObserver:nil];
-  [contentViewProxy windowWillClose];
-  [contentViewProxy windowDidClose];
-
+  if (sheetHidden && [underlyingWindowProxy conformsToProtocol:@protocol(TiWindowProtocol)]) {
+    [(id<TiWindowProtocol>)underlyingWindowProxy gainFocus];
+    return;
+  }
   if ([contentViewProxy isKindOfClass:[TiWindowProxy class]]) {
     UIView *topWindowView = [[[TiApp app] controller] topWindowProxyView];
     if ([topWindowView isKindOfClass:[TiUIView class]]) {
@@ -382,6 +634,22 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
       }
     }
   }
+
+}
+
+- (void)cleanup
+{
+  [sheetPanGate invalidate];
+  RELEASE_TO_NIL(sheetPanGate);
+  [fullScreenTransition invalidate];
+  RELEASE_TO_NIL(fullScreenTransition);
+  [detentEffectTracker stop];
+  RELEASE_TO_NIL(detentEffectTracker);
+  [contentViewProxy setProxyObserver:nil];
+  [contentViewProxy windowWillClose];
+  [contentViewProxy windowDidClose];
+
+  [self restoreUnderlyingWindowFocus];
 
   if (viewController != nil && viewController.isViewLoaded) {
     @try {
@@ -396,13 +664,19 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
   }
 
   bottomSheetInitialized = NO;
+  sheetHidden = NO;
+  sheetTransitioning = NO;
+  pendingSheetRequest = 0;
+  fullScreenInteractive = NO;
   isDismissing = NO;
+  RELEASE_TO_NIL(retainedSelectedDetent);
   [configuredDetentIdentifiers removeAllObjects];
 
   RELEASE_TO_NIL(bottomSheet);
   RELEASE_TO_NIL(viewController);
   RELEASE_TO_NIL(closeButtonView);
   RELEASE_TO_NIL(closeButtonProxy);
+  RELEASE_TO_NIL(underlyingWindowProxy);
   RELEASE_TO_NIL(contentViewProxy);
   RELEASE_TO_NIL(_detents);
   RELEASE_TO_NIL(_largestUndimmedDetentIdentifier);
@@ -421,6 +695,7 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
     UIView *topWindowView = [[[TiApp app] controller] topWindowProxyView];
     if ([topWindowView isKindOfClass:[TiUIView class]]) {
       TiViewProxy *theProxy = (TiViewProxy *)[(TiUIView *)topWindowView proxy];
+      underlyingWindowProxy = [theProxy retain];
       if ([theProxy conformsToProtocol:@protocol(TiWindowProtocol)]) {
         [(id<TiWindowProtocol>)theProxy resignFocus];
       }
@@ -611,8 +886,98 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
 
 #pragma mark - Native sheet configuration
 
+// Only descend within the explicit Titanium scrolling-view reference. Do not
+// replace its UIScrollView delegate or guess among nested scroll surfaces.
+- (UIScrollView *)nativeScrollViewWithin:(UIView *)view
+{
+  if ([view isKindOfClass:UIScrollView.class]) return (UIScrollView *)view;
+  for (UIView *child in view.subviews) {
+    UIScrollView *found = [self nativeScrollViewWithin:child];
+    if (found) return found;
+  }
+  return nil;
+}
+
+- (void)presentFullScreenSheet
+{
+  UIViewController *controller = [self viewController];
+  BOOL restoring = sheetHidden;
+  if (fullScreenTransition == nil) {
+    // NavigationWindow embeds a UINavigationController whose visible child is
+    // attached during layout. Materialize that hierarchy before validating an
+    // explicit scrollView; otherwise valid tables are rejected before presentation.
+    [controller.view setNeedsLayout];
+    [controller.view layoutIfNeeded];
+    id scrollProxy = [self valueForKey:@"scrollView"];
+    UIScrollView *scroll = nil;
+    if (scrollProxy != nil) {
+      UIView *scrollRoot = [scrollProxy isKindOfClass:TiViewProxy.class] ? [(TiViewProxy *)scrollProxy view] : nil;
+      if (scrollRoot && [scrollRoot isDescendantOfView:controller.view]) scroll = [self nativeScrollViewWithin:scrollRoot];
+      if (scroll == nil) {
+        NSLog(@"[ERROR] fullScreen scrollView must refer to a scrolling view inside contentView.");
+        isDismissing = YES;
+        [self fireEvent:@"close" withObject:@{ @"error": @"Invalid full-screen scrollView." }];
+        [self cleanup];
+        return;
+      }
+    }
+    NSMutableDictionary *config = [NSMutableDictionary dictionary];
+    for (NSString *key in @[@"scalesPresentingView", @"fadesPresentingView", @"presentingViewScale", @"presentingViewCornerRadius", @"fullScreenCornerRadius", @"underlayColor", @"prefersGrabberVisible"]) {
+      id value = [self valueForKey:key];
+      if (value) config[key] = value;
+    }
+    fullScreenTransition = [[TiFullScreenSheetTransition alloc] initWithController:controller scrollView:scroll configuration:config];
+    fullScreenTransition.delegate = self;
+    if ([self valueForKey:@"detentEffects"] != nil) NSLog(@"[WARN] detentEffects applies only to native detent sheets.");
+  }
+  controller.modalPresentationStyle = UIModalPresentationCustom;
+  controller.transitioningDelegate = fullScreenTransition;
+  controller.modalInPresentation = !dismissible;
+  id color = [self valueForKey:@"backgroundColor"];
+  controller.view.backgroundColor = color ? [[TiUtils colorValue:color] _color] : UIColor.systemBackgroundColor;
+  if (closeButtonView) {
+    closeButtonProxy.view.frame = closeButtonView.bounds;
+    [closeButtonView addSubview:closeButtonProxy.view];
+    [controller.view addSubview:closeButtonView];
+    [fullScreenTransition setCloseButtonView:closeButtonView];
+  }
+  [fullScreenTransition setInteractiveGesturesEnabled:interactiveGesturesEnabled];
+  [[[[TiApp app] controller] topPresentedController] presentViewController:controller animated:animated completion:^{
+    self->sheetHidden = NO;
+    [self fireEvent:restoring ? @"show" : @"open" withObject:nil];
+    [self finishSheetTransition];
+  }];
+}
+
+- (BOOL)fullScreenSheetCanDismiss
+{
+  return bottomSheetInitialized && !sheetHidden && !sheetTransitioning && !isDismissing && dismissible && interactiveGesturesEnabled;
+}
+- (void)fullScreenSheetWillDismiss
+{
+  fullScreenInteractive = YES;
+  sheetTransitioning = YES;
+  [self fireEvent:@"dismissing" withObject:nil];
+}
+- (void)fullScreenSheetDidDismiss:(BOOL)completed
+{
+  BOOL interactive = fullScreenInteractive;
+  fullScreenInteractive = NO;
+  // Public hide/close have their own completion and disposal path. An external
+  // UIKit dismissal still needs final cleanup, just like native sheet dismissal.
+  if (!interactive && sheetTransitioning) return;
+  if (!completed) { [self finishSheetTransition]; return; }
+  isDismissing = YES;
+  if (!eventFired) {
+    eventFired = YES;
+    [self fireEvent:@"close" withObject:nil];
+    [self cleanup];
+  }
+}
+
 - (void)updatePopoverNow
 {
+  if (fullScreenMode) { [self presentFullScreenSheet]; return; }
   if (@available(iOS 15.0, macCatalyst 15.0, *)) {
     UIViewController *theController = [self viewController];
 
@@ -633,10 +998,13 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
     // programmatic dismissal via close(). It can also be changed at runtime.
     theController.modalInPresentation = !dismissible;
 
+    BOOL restoring = sheetHidden;
+    RELEASE_TO_NIL(bottomSheet);
     bottomSheet = [[theController sheetPresentationController] retain];
     if (bottomSheet == nil) {
       NSLog(@"[ERROR] Unable to create UISheetPresentationController. Use pageSheet presentation for bottom-sheet behavior.");
-      bottomSheetInitialized = NO;
+      [self fireEvent:@"close" withObject:@{ @"error": @"Unable to create native sheet presentation." }];
+      [self cleanup];
       return;
     }
 
@@ -703,7 +1071,9 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
       }
     }
 
-    if (initalSelectedDetent != nil && [configuredDetentIdentifiers containsObject:initalSelectedDetent]) {
+    if (restoring && retainedSelectedDetent != nil && [configuredDetentIdentifiers containsObject:retainedSelectedDetent]) {
+      bottomSheet.selectedDetentIdentifier = retainedSelectedDetent;
+    } else if (initalSelectedDetent != nil && [configuredDetentIdentifiers containsObject:initalSelectedDetent]) {
       bottomSheet.selectedDetentIdentifier = initalSelectedDetent;
     }
 
@@ -743,10 +1113,20 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
       [theController.view bringSubviewToFront:closeButtonView];
     }
 
+    id effectConfig = [self valueForKey:@"detentEffects"];
+    if (detentEffectTracker == nil && [effectConfig isKindOfClass:[NSDictionary class]]) {
+      detentEffectTracker = [[TiSheetEffectTracker alloc] initWithController:theController configuration:effectConfig];
+    }
+
+    [detentEffectTracker setPaused:NO];
     [[[[TiApp app] controller] topPresentedController] presentViewController:theController
                                                                    animated:animated
                                                                  completion:^{
-      [self fireEvent:@"open" withObject:nil];
+      self->sheetHidden = NO;
+      if (!self->sheetPanGate) self->sheetPanGate = [[TiSheetPanGate alloc] initWithController:self->viewController];
+      [self->sheetPanGate setEnabled:self->interactiveGesturesEnabled];
+      [self fireEvent:restoring ? @"show" : @"open" withObject:nil];
+      [self finishSheetTransition];
     }];
   }
 }
@@ -777,7 +1157,7 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
 
 - (BOOL)presentationControllerShouldDismiss:(UIPresentationController *)presentationController
 {
-  if (!dismissible) {
+  if (!dismissible || !interactiveGesturesEnabled || sheetTransitioning || sheetHidden) {
     return NO;
   }
 
@@ -791,6 +1171,9 @@ static UISheetPresentationControllerDetentIdentifier TiNativeDetentIdentifier(NS
 
 - (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController
 {
+  // Programmatic hide/close complete through their own serialized callbacks.
+  if (sheetTransitioning || sheetHidden || !bottomSheetInitialized) return;
+  isDismissing = YES;
   if (!eventFired) {
     eventFired = YES;
     [self fireEvent:@"close" withObject:nil];

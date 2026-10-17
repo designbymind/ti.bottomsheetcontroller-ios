@@ -13,8 +13,15 @@
 #import "TiUINavigationWindowProxy.h"
 #import "TiUINavigationWindowInternal.h"
 #import "TiWindowProxy+Addons.h"
+#import "TiFullScreenSheetTransition.h"
 
-@interface TiBottomsheetcontrollerProxy : TiProxy <UISheetPresentationControllerDelegate, TiProxyObserver> {
+@interface TiBottomsheetcontrollerProxy : TiProxy <UISheetPresentationControllerDelegate, TiProxyObserver, TiFullScreenSheetDelegate> {
+  id sheetPanGate;
+  BOOL interactiveGesturesEnabled;
+  id detentEffectTracker;
+  TiFullScreenSheetTransition *fullScreenTransition;
+  BOOL fullScreenMode;
+  BOOL fullScreenInteractive;
   CGSize TiBottomSheetContentSize;
   UIViewController *viewController;
   UISheetPresentationController *bottomSheet API_AVAILABLE(ios(15.0), macCatalyst(15.0));
@@ -22,11 +29,17 @@
   NSDictionary *customDetents;
   NSMutableSet *configuredDetentIdentifiers;
   UIEdgeInsets bottomSheetSafeAreaInset;
+  TiViewProxy *underlyingWindowProxy;
   TiViewProxy *contentViewProxy;
   TiViewProxy *closeButtonProxy;
   UIView *closeButtonView;
   BOOL animated;
   BOOL bottomSheetInitialized;
+  BOOL sheetHidden;
+  BOOL sheetTransitioning;
+  NSInteger pendingSheetRequest;
+  BOOL pendingSheetAnimated;
+  NSString *retainedSelectedDetent;
   BOOL eventFired;
   BOOL isDismissing;
   BOOL dismissible;
