@@ -211,6 +211,11 @@ dimming follows the same interactive animation, returns on canceled dismissal,
 and is removed on hide/close and recreated on show. It leaves the presenting
 view's own opacity unchanged. These options do not change native sheet dimming.
 
+Animated full-screen presentation and dismissal use a 425 ms ease-in/ease-out
+transition, including optional scaling and dimming. `animated: false` skips it.
+Interactive dismissal follows the gesture; its remaining completion time varies
+with progress and velocity. Native sheet timing remains controlled by iOS.
+
 Configure mode, scroll reference, and appearance at creation time. Scale, translation,
 and corner restoration use the presenter's captured original properties, rather
 than assuming it began with an identity transform. Both sheet movement and presenter

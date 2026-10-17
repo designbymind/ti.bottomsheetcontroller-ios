@@ -163,7 +163,7 @@ static CGFloat TiFullScreenNumber(NSDictionary *config, NSString *key, CGFloat f
 - (id<UIViewControllerInteractiveTransitioning>)interactionControllerForDismissal:(id<UIViewControllerAnimatedTransitioning>)animator
 { return _interaction; }
 - (NSTimeInterval)transitionDuration:(id<UIViewControllerContextTransitioning>)context
-{ return [context isAnimated] ? 0.32 : 0; }
+{ return [context isAnimated] ? 0.425 : 0; }
 - (void)animateTransition:(id<UIViewControllerContextTransitioning>)context
 {
   [[self interruptibleAnimatorForTransition:context] startAnimation];

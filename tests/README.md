@@ -2,7 +2,7 @@
 
 These Classic Titanium harnesses exercise an app-local installation of the module.
 
-## 2.3.2 package validation, October 17, 2026
+## Initial 2.3.2 candidate validation, October 17, 2026
 
 The module built successfully with Titanium SDK 13.4.1.GA and Xcode 27.1 Beta.
 The archive passed CRC and source-manifest checks; its native libraries include
@@ -10,7 +10,7 @@ the new `fadesPresentingView` option and contain arm64 device and arm64/x86_64
 simulator slices. The example passed JavaScript syntax checking. Dimming's
 visual behavior has not yet been verified on a simulator or physical device.
 
-Archive SHA-256: `48fbb3baefaefb97b0636a1f2b8fa8f7b280cf830a04a5710cc49c6031e2ccbc`
+Initial candidate SHA-256 (320 ms, superseded by the 425 ms release): `48fbb3baefaefb97b0636a1f2b8fa8f7b280cf830a04a5710cc49c6031e2ccbc`
 
 - `full-screen-navigation.js`: call `require('full-screen-navigation').run()` with module 2.3.1. Covers nested NavigationWindow/TableView presentation, reopen, gesture-lock properties, hide/show, native-sheet compatibility, and rejection of an unrelated table. Saves `full-screen-navigation-result.json`.
 
